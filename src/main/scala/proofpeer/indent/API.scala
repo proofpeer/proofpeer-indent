@@ -4,11 +4,21 @@ import scala.collection.immutable._
 
 object API {
 
-  sealed abstract class Symbol
+  sealed abstract class Symbol() {
+    def name : String
+    override def toString() : String = name
+  }
   case class Nonterminal(name : String) extends Symbol
   case class Terminal(name : String) extends Symbol
   
-  case class IndexedSymbol(symbol : Symbol, index : Option[String])
+  case class IndexedSymbol(symbol : Symbol, index : Option[String]) {
+    override def toString() : String = {
+      index match {
+        case None => symbol.name 
+        case Some(index) => symbol.name + "_" + index
+      }
+    }
+  }
  
   case class Rule(lhs : Nonterminal, rhs : List[IndexedSymbol], constraint : Constraint)
   
@@ -25,7 +35,9 @@ object API {
     import APIConversions._
     import Constraints._
     val r = rule("ST", "if E then ST_1 else ST_2")
-    "rule = " + r
+    //val n : IndexedSymbol = "ST_12"
+    //n.symbol.name + ": " + n
+    "rule: " + r
   }
     
   def main(args : Array[String]) {

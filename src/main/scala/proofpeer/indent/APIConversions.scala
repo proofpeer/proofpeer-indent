@@ -2,13 +2,15 @@ package proofpeer.indent
 
 import API._
 import scala.language.implicitConversions
+import proofpeer.scala.lang._
 
 object APIConversions {
-
+  
+    
   def name2Symbol(name: String): Symbol = {
-    if (name == "" || !name.forall(_.isLetter))
+    if (name == "" || !name.forall(isLetter))
       throw new RuntimeException("Cannot convert name '" + name + "' to Symbol")
-    if (name.charAt(0).isLower) Terminal(name) else Nonterminal(name)
+    if (isLowerLetter(name.charAt(0))) Terminal(name) else Nonterminal(name)
   }
 
   implicit def name2Nonterminal(name: String): Nonterminal = {
@@ -31,7 +33,7 @@ object APIConversions {
       val left = name.substring(0, u)
       val right = name.substring(u + 1)
       if (left == "" || right == "" ||
-        !left.forall(_.isLetter) || !right.forall(_.isDigit))
+        !left.forall(isLetter(_)) || !right.forall(isDigit(_)))
         throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
       IndexedSymbol(name2Symbol(left), Some(right))
     } else {
