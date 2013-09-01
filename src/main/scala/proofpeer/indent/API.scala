@@ -35,8 +35,6 @@ object API {
     import APIConversions._
     import Constraints._
     val r = rule("ST", "if E then ST_1 else ST_2")
-    //val n : IndexedSymbol = "ST_12"
-    //n.symbol.name + ": " + n
     "rule: " + r
   }
     
