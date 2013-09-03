@@ -104,6 +104,9 @@ object API {
     */
   case class LessPriority(a : Nonterminal, b : Nonterminal) extends Annotation
   
+  /** The layout (span) associated with this nonterminal will be ignored. */
+  case class IgnoreLayout(nonterminal : Nonterminal) extends Annotation
+  
   /** A grammar consists of rules and annotations. */
   case class Grammar(rules : Vector[Rule[IndexedSymbol]], annotations : Vector[Annotation]) {
     lazy val info = GrammarChecker.check(this)
@@ -113,21 +116,22 @@ object API {
   def test () : String = {
     import APIConversions._
     import Constraints._
-    def align(a : IndexedSymbol, b : IndexedSymbol) : Constraint[IndexedSymbol] =
-      Eq(LeftMost(a), LeftMost(b))
     val rules = Vector(
-      rule("ST", "if E then ST else ST", align("A", "ST"))
+      rule("ST", "if E then ST_1 else ST_2", Align("if", "ST_1"))
     )
     val annotations = Vector(
       Lexical("A"),
+      Lexical("B"),
       LessPriority("A", "B"),
-      Lexical("ST")
+      Lexical("ST"),
+      Lexical("E")
     )
     val grammar = Grammar(rules, annotations)
     var message = "wellformed: " + grammar.wellformed
     for (error <- grammar.info.errors) {
       message = message + "\nerror: " + error
     }
+    message += "\n\nrules:\n"+grammar.info.rules
     "<pre>\n" + message + "\n</pre>"
   }
     

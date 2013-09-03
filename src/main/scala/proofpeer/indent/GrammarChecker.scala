@@ -62,7 +62,7 @@ object GrammarChecker {
     def annotations = List(annotationindex)
   }
   
-  def checkConstraints(grammar : Grammar) : (List[Rule[Int]], List[GrammarError]) = {
+  def checkConstraints(grammar : Grammar) : (Vector[Rule[Int]], List[GrammarError]) = {
     import Constraints.translateConstraint
     val rules = grammar.rules
     var transformed_rules : List[Rule[Int]] = List()
@@ -80,7 +80,7 @@ object GrammarChecker {
           errors = AmbiguousSymbolInConstraint(ruleindex, symbol) :: errors
       }
     }
-    (transformed_rules.reverse, errors.reverse)
+    (transformed_rules.reverse.toVector, errors.reverse)
   }
   
   def computeLexicals(grammar : Grammar) : Map[Nonterminal, Int] = {
@@ -171,11 +171,12 @@ object GrammarChecker {
     val errors3 = checkPriorities(grammar, lexicals)
     val nullables = computeNullables(grammar)
     val errors4 = checkNullableLexicals(lexicals, nullables)
-    GrammarInfo(errors1 ++ errors2 ++ errors3 ++ errors4, lexicals, nullables)
+    GrammarInfo(errors1 ++ errors2 ++ errors3 ++ errors4, rules, lexicals, nullables)
   }
   
   case class GrammarInfo (
       errors : List[GrammarError], 
+      rules : Vector[Rule[Int]],
       lexicals : Map[Nonterminal, Int],
       nullables : Set[Nonterminal])
   {
