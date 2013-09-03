@@ -20,12 +20,14 @@ object Range {
   
   def universal : Range = new Range(List())
   
-  def add(range1 : Range, range2 : Range) : Range = {
-    if (range1.isUniversal || range2.isUniversal) {
-      universal
-    } else {
-      new Range(range1.intervals ++ range2.intervals)
+  def add(range : Range, ranges : Range*) : Range = {
+    var r = range
+    val it = ranges.iterator
+    while (!r.isUniversal && it.nonEmpty) {
+      val s = it.next
+      r = if (s.isUniversal) universal else new Range(r.intervals ++ s.intervals)
     }
+    return r
   }
   
   def interval(left : Int, right : Int) : Range = {
@@ -35,5 +37,7 @@ object Range {
       throw new RuntimeException("invalid interval ("+left+", "+right+")")
     }
   }  
+    
+  def singleton(x : Int) = new Range(List((x, x)))
   
 }
