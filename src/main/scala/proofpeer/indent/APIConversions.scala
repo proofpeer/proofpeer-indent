@@ -7,8 +7,8 @@ import proofpeer.scala.lang._
 object APIConversions {
      
   def name2SymbolName(name: String): SymbolName = {
-    val all_letters = name.forall(isLetter)
-    val all_digits = name.forall(isDigit)
+    val all_letters = name.forall(isASCIILetter)
+    val all_digits = name.forall(isASCIIDigit)
     if (name == "" || !(all_letters || all_digits))
       throw new RuntimeException("Cannot convert name '" + name +"' to SymbolName")
     if (all_letters)
@@ -22,7 +22,7 @@ object APIConversions {
     val u = name.indexOf("-")
     if (u < 0) {
       val symbolname = name2SymbolName(name)
-      if (isUpperLetter(name.charAt(0)))
+      if (isASCIIUpperLetter(name.charAt(0)))
         Nonterminal(symbolname)
       else 
         Terminal(symbolname)
@@ -58,7 +58,7 @@ object APIConversions {
       val left = name.substring(0, u)
       val right = name.substring(u + 1)
       if (left == "" || right == "" ||
-        !left.forall(isLetter(_)) || !right.forall(isDigit(_)))
+        !left.forall(isASCIILetter(_)) || !right.forall(isASCIIDigit(_)))
         throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
       IndexedSymbol(name2Symbol(left), Some(right))
     } else 

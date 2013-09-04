@@ -112,7 +112,7 @@ object API {
     lazy val info = GrammarChecker.check(this)
     lazy val wellformed = info.wellformed
   }
-    
+      
   def test () : String = {
     import APIConversions._
     import Constraints._
@@ -128,13 +128,34 @@ object API {
       Lexical("ST"),
       Lexical("E")
     )
+    
     val grammar = Grammar(rules, annotations)
     var message = "wellformed: " + grammar.wellformed
+        
     for (error <- grammar.info.errors) {
       message = message + "\nerror: " + error
     }
     message += "\n\nrules:\n"+grammar.info.rules
+    
+    val document = UnicodeDocument.fromString("hello\n\nworld, fellas :-)𝒫\uD835\uDCAB")
+
+    message += "\n\ndocument size: " + document.size
+    
     "<pre>\n" + message + "\n</pre>"
+    
+    "unicode:" + unicode()
+        
+  }
+  
+  def unicode() : String = {
+    //val str = "A∀𝒫"
+    val str = "A∀\uD835\uDCAB"  
+    var s : String = ""
+    for (c <- str) {
+      val code : Int = c
+      s = s + code + " "
+    }
+    s
   }
     
   def main(args : Array[String]) {
