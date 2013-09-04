@@ -101,12 +101,7 @@ object API {
   
   /** Grammar annotation to mark a nonterminal as lexical. */
   case class Lexical(nonterminal : Nonterminal) extends Annotation
-  
-  /** Grammar annotation to mark one lexical nonterminal as having less priority as another
-    * lexical nonterminal.
-    */
-  case class LessPriority(a : Nonterminal, b : Nonterminal) extends Annotation
-    
+      
   /** A grammar consists of rules and annotations. */
   case class Grammar(rules : Vector[Rule[IndexedSymbol]], annotations : Vector[Annotation]) {
     lazy val info = GrammarChecker.check(this)
@@ -124,7 +119,6 @@ object API {
     val annotations = Vector(
       Lexical("A"),
       Lexical("B"),
-      LessPriority("A", "B"),
       Lexical("ST"),
       Lexical("E")
     )

@@ -117,25 +117,6 @@ object GrammarChecker {
     errors.reverse
   }
   
-  def checkPriorities(grammar : Grammar, lexicals : Map[Nonterminal, Int]) :
-    List[GrammarError] =
-  {
-    val annotations = grammar.annotations
-    var errors : List[GrammarError] = List()
-    for (annotationindex <- 0 to annotations.size - 1) {
-      val annotation = annotations(annotationindex)
-      annotation match {
-        case LessPriority(a, b) =>
-          if (!lexicals.contains(a)) 
-            errors = NonLexicalPriority(annotationindex, a) :: errors
-          if (!lexicals.contains(b))
-            errors = NonLexicalPriority(annotationindex, b) :: errors        
-        case _ =>
-      }
-    }
-    errors.reverse
-  }
-  
   def computeNullables(grammar : Grammar) : Set[Nonterminal] = {
     val rules = grammar.rules.filter(r => r.rhs.forall(_.indexedSymbol.symbol.isNonterminal))
     var nullables : Set[Nonterminal] = Set()
@@ -168,10 +149,9 @@ object GrammarChecker {
     val (rules, errors1) = checkConstraints(grammar)
     val lexicals = computeLexicals(grammar)
     val errors2 = checkLexicalDependencies(grammar, lexicals)
-    val errors3 = checkPriorities(grammar, lexicals)
     val nullables = computeNullables(grammar)
-    val errors4 = checkNullableLexicals(lexicals, nullables)
-    GrammarInfo(errors1 ++ errors2 ++ errors3 ++ errors4, rules, lexicals, nullables)
+    val errors3 = checkNullableLexicals(lexicals, nullables)
+    GrammarInfo(errors1 ++ errors2 ++ errors3, rules, lexicals, nullables)
   }
   
   case class GrammarInfo (

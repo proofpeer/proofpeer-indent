@@ -1,6 +1,6 @@
 package proofpeer.indent
 
-/** The members of Span correspond to the [[API.LayoutEntity]] cases. */
+/** The members of Span correspond to the [[Constraints.LayoutEntity]] cases. */
 case class Span(
   firstRow : Int,
   lastRow : Int,
