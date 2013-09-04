@@ -61,13 +61,22 @@ object APIConversions {
         !left.forall(isLetter(_)) || !right.forall(isDigit(_)))
         throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
       IndexedSymbol(name2Symbol(left), Some(right))
-    } else {
+    } else 
       IndexedSymbol(name2Symbol(name), None)
-    }
   }
   
-  def string2rhs(s : String) : Vector[IndexedSymbol] = {
-    s.split(" ").map(name2IndexedSymbol(_)).toVector
+  implicit def name2AnnotatedSymbol(name: String): AnnotatedSymbol = {
+    if (!name.isEmpty() && name.charAt(0) == '^')
+      AnnotatedSymbol(name.substring(1), true)
+    else
+      AnnotatedSymbol(name, false)
+  }
+  
+  def string2rhs(s : String) : Vector[AnnotatedSymbol] = {
+    if (s.trim().isEmpty())
+      Vector()
+    else
+      s.split(" ").map(name2AnnotatedSymbol(_)).toVector
   }
     
 }

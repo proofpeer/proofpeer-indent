@@ -69,7 +69,7 @@ object GrammarChecker {
     var errors : List[GrammarError] = List()
     for (ruleindex <- 0 to rules.size - 1) {
       val rule = rules(ruleindex)
-      val (constraint, symbols) = translateConstraint(rule.rhs, rule.constraint, Map())
+      val (constraint, symbols) = translateConstraint(rule.rhs.map(_.indexedSymbol), rule.constraint, Map())
       transformed_rules = Rule(rule.lhs, rule.rhs, constraint) :: transformed_rules
       for ((symbol, indices) <- symbols) {
         val multiplicity = indices.size
@@ -106,7 +106,7 @@ object GrammarChecker {
       val rule = rules(ruleindex)
       if (lexicals.contains(rule.lhs)) {
         val dependencies = rule.rhs.collect {
-          case IndexedSymbol(x : Nonterminal, _) if !lexicals.contains(x) => x
+          case AnnotatedSymbol(IndexedSymbol(x : Nonterminal, _), _) if !lexicals.contains(x) => x
         }
         for (dependency <- dependencies) {
           errors = InvalidLexicalDependency(ruleindex, lexicals(rule.lhs), 
@@ -137,11 +137,11 @@ object GrammarChecker {
   }
   
   def computeNullables(grammar : Grammar) : Set[Nonterminal] = {
-    val rules = grammar.rules.filter(r => r.rhs.forall(_.symbol.isNonterminal))
+    val rules = grammar.rules.filter(r => r.rhs.forall(_.indexedSymbol.symbol.isNonterminal))
     var nullables : Set[Nonterminal] = Set()
     def ruleIsNullable(rule : Rule[IndexedSymbol]) : Boolean = {
       rule.rhs.forall {
-        case IndexedSymbol(x : Nonterminal, _) => nullables.contains(x)
+        case AnnotatedSymbol(IndexedSymbol(x : Nonterminal, _),_) => nullables.contains(x)
         case _ => false
       }
     }
@@ -175,10 +175,10 @@ object GrammarChecker {
   }
   
   case class GrammarInfo (
-      errors : List[GrammarError], 
-      rules : Vector[Rule[Int]],
-      lexicals : Map[Nonterminal, Int],
-      nullables : Set[Nonterminal])
+    errors : List[GrammarError], 
+    rules : Vector[Rule[Int]],
+    lexicals : Map[Nonterminal, Int],
+    nullables : Set[Nonterminal])
   {
     def wellformed = errors.isEmpty
   }

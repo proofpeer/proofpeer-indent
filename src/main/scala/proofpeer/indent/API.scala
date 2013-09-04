@@ -77,10 +77,13 @@ object API {
     }
   }
   
+  /** Augments an IndexedSymbol with an annotation whether its layout is to be ignored. */
+  case class AnnotatedSymbol(indexedSymbol : IndexedSymbol, ignore_layout : Boolean)
+  
   import Constraints.Constraint
  
   /** A grammar rule with constraints. */
-  case class Rule[S](lhs : Nonterminal, rhs : Vector[IndexedSymbol], 
+  case class Rule[S](lhs : Nonterminal, rhs : Vector[AnnotatedSymbol], 
                   constraint : Constraint[S])
   
   /** Compact specification of grammar rules.
@@ -103,10 +106,7 @@ object API {
     * lexical nonterminal.
     */
   case class LessPriority(a : Nonterminal, b : Nonterminal) extends Annotation
-  
-  /** The layout (span) associated with this nonterminal will be ignored. */
-  case class IgnoreLayout(nonterminal : Nonterminal) extends Annotation
-  
+    
   /** A grammar consists of rules and annotations. */
   case class Grammar(rules : Vector[Rule[IndexedSymbol]], annotations : Vector[Annotation]) {
     lazy val info = GrammarChecker.check(this)
@@ -117,7 +117,9 @@ object API {
     import APIConversions._
     import Constraints._
     val rules = Vector(
-      rule("ST", "if E then ST_1 else ST_2", Align("if", "ST_1"))
+      rule("ST", "if E then ^ST_1 else ST_2", Align("if", "ST_1")),
+      rule("A", ""),
+      rule("B", "A A")
     )
     val annotations = Vector(
       Lexical("A"),
