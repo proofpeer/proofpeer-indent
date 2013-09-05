@@ -9,6 +9,16 @@ case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : 
   def inc : Item = Item(nonterminal, ruleindex, dot + 1, origin)
 }
 
+/** General-purpose Earley parser. Apart from using Terminal, Nonterminal, TerminalLike
+  * and Symbol, it is entirely independent of [[proofpeer.indent.API]].
+  * It can be used in any situation that calls for an Earley parser / recognizer. 
+  * This implementation has several special features compared with the usual Earley recognizer:
+  *   - It computes values and can therefore be used not only for recognizing, but also for parsing
+  *   - It includes the parsing of blackboxes: the parser can delegate parsing of 
+  *     blackbox nonterminals to third-parties.
+  *   - The application of rules can be rejected based on the values that have been computed for the 
+  *     symbols on the right hand side. 
+  */
 class Earley[Value, IntermediateValue](
     grammar : BlackboxGrammar[Value, IntermediateValue], 
     document : Document) 
