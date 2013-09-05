@@ -1,7 +1,6 @@
 package proofpeer.indent.earley
 
-import proofpeer.indent._
-import proofpeer.indent.API._
+import proofpeer.indent.API.{Terminal, Nonterminal, Symbol}
 import scala.collection.immutable._
 
 trait Document {
@@ -13,7 +12,12 @@ trait Token {
   def terminal : Terminal  
 }
 
-trait BlackboxGrammar[Value, IntermediateValue, BlackboxValue] {
+trait Rule {
+  def rhsSize : Int
+  def rhsAt(i : Int) : Symbol
+}
+
+trait BlackboxGrammar[Value, IntermediateValue] {
   
   /** Does nonterminal have specialised parsing routines associated with it? */
   def isBlackbox(nonterminal : Nonterminal) : Boolean
@@ -22,9 +26,9 @@ trait BlackboxGrammar[Value, IntermediateValue, BlackboxValue] {
   def hasBlackboxes : Boolean
   
   /** Returns all rules associated with the given nonterminals. 
-    * This method will only be called for nonterminals for which [[isBlackbox]] is false.
+    * Note that blackboxes are also allowed to have rules.
     */
-  def rulesOfNonterminal(nonterminal : Nonterminal) : Vector[Rule[Int]]
+  def rulesOfNonterminal(nonterminal : Nonterminal) : Vector[Rule]
   
   /** Invokes the specialised parsing routines for a given set of blackbox nonterminals.
     * @param document The document to be parsed.
@@ -36,7 +40,7 @@ trait BlackboxGrammar[Value, IntermediateValue, BlackboxValue] {
     *    consists of the end position (exclusive) of the parse, and the value associated with the parse.
     */
   def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
-    Map[Nonterminal, Seq[(Int, BlackboxValue)]]
+    Map[Nonterminal, Seq[(Int, Value)]]
   
   /** The value associated with a token. */
   def valueOfToken(token : Token) : Value
@@ -83,7 +87,4 @@ trait BlackboxGrammar[Value, IntermediateValue, BlackboxValue] {
   def joinValues(document : Document, i : Int, j : Int, nonterminal : Nonterminal, 
     value1 : Value, value2 : Value) : Value
     
-    
-  
-
 }

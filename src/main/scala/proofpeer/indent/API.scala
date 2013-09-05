@@ -33,13 +33,18 @@ object API {
     def isNonterminal = true
   }
   
+  trait TerminalLike {
+    def isLike(name : Terminal) : Boolean
+    def isNonterminal = false
+  }
+  
   /** Terminal symbols.
     * By convention the name either consists only of letters, 
     * where the first letter is lower case, or otherwise is a [[SymbolNameCode]].    
     */
-  case class Terminal(name : SymbolName) extends Symbol {
+  case class Terminal(name : SymbolName) extends Symbol with TerminalLike {
     override def toString() = name.toString
-    def isNonterminal = false
+    def isLike(t : Terminal) = t.name == name
   }
   
   /** Terminal range symbols. 
@@ -53,15 +58,14 @@ object API {
     * val terminal_range = TerminalRange(Range.add(lowercase, uppercase, digits))
     * }}}
     */
-  case class TerminalRange(range : Range) extends Symbol {
-    def contains(name : SymbolName) : Boolean = {
-      name match {
+  case class TerminalRange(range : Range) extends Symbol with TerminalLike {
+    def isLike(t : Terminal) : Boolean = {
+      t.name match {
         case SymbolNameStr(_) => false
         case SymbolNameCode(code) => range.contains(code)
       }
     }
     override def toString() = range.toString()
-    def isNonterminal = false
   }
   
   /** IndexedSymbols are symbols that carry an optional index tag.
