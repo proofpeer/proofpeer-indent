@@ -1,6 +1,8 @@
 package proofpeer.indent.earley
 
 import proofpeer.indent.API.{Terminal, Nonterminal, TerminalLike, Symbol}
+import proofpeer.indent.Document
+
 import scala.collection.immutable._
 import scala.collection.mutable.{Map => MutableMap}
 import scala.collection.mutable.{Set => MutableSet}
@@ -102,8 +104,7 @@ class Earley[Value, IntermediateValue](
         {
           case None => 
           case Some(nextvalue) =>
-            completed_items = (item.inc -> nextvalue) :: 
-              completed_items
+            completed_items = (item.inc -> nextvalue) :: completed_items
         }
       }
     }

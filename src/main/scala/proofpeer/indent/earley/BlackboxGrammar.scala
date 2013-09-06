@@ -1,16 +1,9 @@
 package proofpeer.indent.earley
 
 import proofpeer.indent.API.{Terminal, Nonterminal, Symbol}
+import proofpeer.indent.Token
+import proofpeer.indent.Document
 import scala.collection.immutable._
-
-trait Document {
-  def size : Int
-  def getToken(position : Int) : Token
-}
-
-trait Token {
-  def terminal : Terminal  
-}
 
 trait Rule {
   def rhsSize : Int
@@ -42,7 +35,7 @@ trait BlackboxGrammar[Value, IntermediateValue] {
   def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
     Map[Nonterminal, Seq[(Int, Value)]]
   
-  /** The value associated with a token. */
+  /** The value associated with a token in the document */
   def valueOfToken(token : Token) : Value
   
   /** The initial value for parsing a rule.

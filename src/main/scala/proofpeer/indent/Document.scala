@@ -33,7 +33,7 @@ case class Span(
     
 }
   
-case class Token(terminal : API.Terminal, span : Span)
+case class Token(terminal : API.Terminal, i : Int, span : Span)
 
 trait Document {
   
@@ -70,7 +70,7 @@ class UnicodeDocument(characters : Vector[(Int, Int, Int)])  {
     val (_, column0, _) = characters(rows(row))
     val terminal = Terminal(SymbolNameCode(code)) 
     val span = Span(row, row, column0, column, column, None, column)
-    Token(terminal, span)
+    Token(terminal, position, span)
   }
   
 }

@@ -110,6 +110,14 @@ object API {
   case class Grammar(rules : Vector[Rule[IndexedSymbol]], annotations : Vector[Annotation]) {
     lazy val info = GrammarChecker.check(this)
     lazy val wellformed = info.wellformed
+    //private lazy val bb_grammar = new proofpeer.inden
+    lazy val parser : Parser = 
+      proofpeer.indent.earley.Adapter.parser(this)
+  }
+  
+  trait Parser {
+    def grammar : Grammar
+    def parse(document : Document, start : Nonterminal, k : Int) : Option[(Derivation.Value, Int)] 
   }
       
   def test () : String = {
