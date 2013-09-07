@@ -55,12 +55,11 @@ object APIConversions {
   implicit def name2IndexedSymbol(name: String): IndexedSymbol = {
     val u = name.indexOf("_")
     if (u >= 0) {
-      val left = name.substring(0, u)
+      val left = name2Symbol(name.substring(0, u))
       val right = name.substring(u + 1)
-      if (left == "" || right == "" ||
-        !left.forall(isASCIILetter(_)) || !right.forall(isASCIIDigit(_)))
+      if (right == "" || !right.forall(isASCIIDigit(_)))
         throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
-      IndexedSymbol(name2Symbol(left), Some(right))
+      IndexedSymbol(left, Some(right))
     } else 
       IndexedSymbol(name2Symbol(name), None)
   }

@@ -73,7 +73,7 @@ object Derivation {
           if (trees.isEmpty)
             (None, cycle_value)
           else
-            (Some(ValueNonterminal(i, j, value.span, nonterminal, trees)), cycle_value)
+            (Some(ValueNonterminal(i, j, value.span, value.nonterminal, trees)), cycle_value)
         }
       case _  => (Some(value), None)
     }
@@ -108,4 +108,78 @@ object Derivation {
     }
   }
   
+  def visualize(grammar : API.Grammar, prefix : String, value : Value,
+      display : Value => Boolean) : Array[String] = 
+  {
+    if (!display(value)) return Array()
+    value match {
+      case ValueToken(token) => Array(prefix + "token: " + token.terminal)
+      case ValueNonterminal(i, j, _, nonterminal, derivations) =>
+        if (derivations.size == 1) 
+          visualize(grammar, prefix, derivations.head, display)
+        else {
+          var output = Array(prefix + "==========================") 
+          //val ordering = Ordering.by[Array[String], String](_.toList.toString)
+          var sorted : Set[Vector[String]] = Set()// = SortedSet()(ordering)
+          for (tree <- derivations) 
+            sorted += visualize(grammar, prefix, tree, display).toVector          
+          var first = true
+          for (tree <- sorted) {
+            if (first) 
+              first = false
+            else
+              output = output :+ (prefix + "--------------------------")
+            output = output ++ tree 
+           }
+           output = output :+ (prefix + "==========================")
+           output
+        }
+    }
+  }
+  
+  private def symbolOfValue(value : Value) : String = {
+    value match {
+      case ValueToken(t) => t.terminal.toString
+      case v: ValueNonterminal => v.nonterminal.toString
+    }
+  }
+  
+  def visualize(grammar : API.Grammar, prefix : String, tree : Tree,
+      display : Value => Boolean) : Array[String] = 
+  {
+    val rule = grammar.rules(tree.ruleindex)
+    var output : Array[String] = Array()
+    var rhs = (0 to tree.rhs.size - 1).map{ case i =>
+      val v = tree.rhs(i)
+      if (display(v)) 
+        rule.rhs(i).toString 
+      else
+          symbolOfValue(tree.rhs(i))}.
+      fold("")((x, y) => x + " " + y)
+    //var rhs = rule.rhs.map(_.toString).fold("")((x, y) => x + " " + y)
+    if (!rhs.isEmpty()) rhs = rhs.substring(1)
+    output = output :+ (prefix + rule.lhs + " => " + rhs)
+    for (value <- tree.rhs) output = output ++ 
+      visualize(grammar, "  " + prefix, value, display)
+    output
+  }
+  
+  def visualize(grammar : API.Grammar, value : Value, display : Value => Boolean) 
+    : String = 
+  {
+    visualize(grammar, "", value, display).fold("")((x, y) => x + "\n" + y)
+  }
+  
+  def defaultDisplay(value : Value) : Boolean = 
+    value match {
+      case _ : ValueToken => false
+      case v : ValueNonterminal => true
+  }
+
+  def visualize(grammar : API.Grammar, value : Value) 
+    : String = 
+  {
+    visualize(grammar, "", value, defaultDisplay(_)).fold("")((x, y) => x + "\n" + y)
+  }
+
 }

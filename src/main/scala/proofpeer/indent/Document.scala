@@ -43,7 +43,7 @@ trait Document {
 
 }
 
-class UnicodeDocument(characters : Vector[(Int, Int, Int)])  {
+class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
     
   def size = characters.size
 

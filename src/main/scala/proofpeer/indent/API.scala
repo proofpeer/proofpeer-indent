@@ -2,6 +2,12 @@ package proofpeer.indent
 
 import scala.collection.immutable._
 
+case class Dummy(nonterminal : API.Nonterminal, ruleindex : Int, dot : Int, origin : Int) {
+  //def inc : DummyItem = Item(nonterminal, ruleindex, dot + 1, origin)
+  //override def hashCode : Int = List
+}
+
+
 /** The main entry point for the ProofPeer Indent API. 
   *  All main functionality of Indent is available through this API object.
   */
@@ -82,24 +88,17 @@ object API {
   }
   
   /** Augments an IndexedSymbol with an annotation whether its layout is to be ignored. */
-  case class AnnotatedSymbol(indexedSymbol : IndexedSymbol, ignore_layout : Boolean)
+  case class AnnotatedSymbol(indexedSymbol : IndexedSymbol, ignore_layout : Boolean) {
+    override def toString : String = 
+      if (ignore_layout) "^" + indexedSymbol else indexedSymbol.toString
+  }
   
   import Constraints.Constraint
  
   /** A grammar rule with constraints. */
   case class Rule[S](lhs : Nonterminal, rhs : Vector[AnnotatedSymbol], 
                   constraint : Constraint[S])
-  
-  /** Compact specification of grammar rules.
-    * Uses [[APIConversions.string2rhs]] to process the `rhs` parameter.
-    */
-  def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) =
-    Rule(lhs, APIConversions.string2rhs(rhs), constraint)
-
-  /** Compact specification of grammar rules. */    
-  def rule(lhs : Nonterminal, rhs : String) : Rule[IndexedSymbol] =
-    rule(lhs, rhs, Constraints.Unconstrained)
-    
+      
   /** Grammar annotations. */
   sealed abstract class Annotation
   
@@ -113,29 +112,67 @@ object API {
     //private lazy val bb_grammar = new proofpeer.inden
     lazy val parser : Parser = 
       proofpeer.indent.earley.Adapter.parser(this)
+    def ++(other : Grammar) : Grammar = {
+      Grammar(rules ++ other.rules, annotations ++ other.annotations)
+    }
   }
   
   trait Parser {
     def grammar : Grammar
     def parse(document : Document, start : Nonterminal, k : Int) : Option[(Derivation.Value, Int)] 
+    def parse(document : String, start : Nonterminal) : Option[Derivation.Value] = {
+      val d = UnicodeDocument.fromString(document)
+      parse(d, start, 0) match {
+        case None => None
+        case Some((v, i)) => if (i == d.size) Some(v) else None
+      }
+    }
   }
-      
-  def test () : String = {
+  
+  /** Compact specification of grammars.
+    * Uses [[APIConversions.string2rhs]] to process the `rhs` parameter.
+    */
+  def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar =
+    Grammar(Vector(Rule(lhs, APIConversions.string2rhs(rhs), constraint)), Vector())
+
+  /** Compact specification of grammars. */    
+  def rule(lhs : Nonterminal, rhs : String) : Grammar =
+    rule(lhs, rhs, Constraints.Unconstrained)
+    
+  /** Compact specification of grammars. */        
+  def lexical(nonterminal : Nonterminal) : Grammar =
+    Grammar(Vector(), Vector(Lexical(nonterminal)))
+  
+  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar = {
+    val symbols = APIConversions.string2rhs(rhs)
+    var constraints = List(constraint)
+    for (i <- 1 to (symbols.size - 1)) {
+      val a = symbols(i-1).indexedSymbol
+      val b = symbols(i).indexedSymbol
+      constraints = (Constraints.Connect(a, b)) :: constraints
+    }
+    Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints))),
+      Vector(Lexical(lhs)))
+  }
+    
+  def lexrule(lhs : Nonterminal, rhs : String) : Grammar = 
+    lexrule(lhs, rhs, Constraints.Unconstrained)
+  
+  def example1 : Grammar = {
     import APIConversions._
     import Constraints._
-    val rules = Vector(
-      rule("ST", "if E then ^ST_1 else ST_2", Align("if", "ST_1")),
-      rule("A", ""),
-      rule("B", "A A")
-    )
-    val annotations = Vector(
-      Lexical("A"),
-      Lexical("B"),
-      Lexical("ST"),
-      Lexical("E")
-    )
-    
-    val grammar = Grammar(rules, annotations)
+    val grammar =
+      rule("ST", "if E then ^ST_1 else ST_2", Align("if", "ST_1")) ++
+      rule("A", "") ++
+      rule("B", "A A") ++
+      lexical("A") ++
+      lexical("B") ++
+      lexical("ST") ++
+      lexical("E")
+    grammar  
+  }
+  
+  def reportGrammar(grammar : Grammar) = {
     var message = "wellformed: " + grammar.wellformed
         
     for (error <- grammar.info.errors) {
@@ -143,29 +180,8 @@ object API {
     }
     message += "\n\nrules:\n"+grammar.info.rules
     
-    val document = UnicodeDocument.fromString("hello\n\nworld, fellas :-)𝒫\uD835\uDCAB")
-
-    message += "\n\ndocument size: " + document.size
-    
-    "<pre>\n" + message + "\n</pre>"
-    
-    "unicode:" + unicode()
-        
-  }
-  
-  def unicode() : String = {
-    //val str = "A∀𝒫"
-    val str = "A∀\uD835\uDCAB"  
-    var s : String = ""
-    for (c <- str) {
-      val code : Int = c
-      s = s + code + " "
-    }
-    s
+    message    
   }
     
-  def main(args : Array[String]) {
-    println(test())    
-  }
   
 }

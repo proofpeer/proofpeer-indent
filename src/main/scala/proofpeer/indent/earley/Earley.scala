@@ -9,6 +9,7 @@ import scala.collection.mutable.{Set => MutableSet}
 
 case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : Int) {
   def inc : Item = Item(nonterminal, ruleindex, dot + 1, origin)
+  //override def hashCode : Int = List[Any](nonterminal, ruleindex, dot, origin).hashCode
 }
 
 /** General-purpose Earley parser. Apart from using Terminal, Nonterminal, TerminalLike
@@ -99,8 +100,8 @@ class Earley[Value, IntermediateValue](
     for ((item, v) <- bin.items) {
       val s = expectedSymbol(item)
       if (s == Some (nonterminal)) {
-        grammar.nextValue(document, item.origin, bin.binindex, completed_binindex, nonterminal, 
-          item.ruleindex, item.dot, v, value) match 
+        grammar.nextValue(document, item.origin, bin.binindex, completed_binindex, 
+          item.nonterminal, item.ruleindex, item.dot, v, value) match 
         {
           case None => 
           case Some(nextvalue) =>

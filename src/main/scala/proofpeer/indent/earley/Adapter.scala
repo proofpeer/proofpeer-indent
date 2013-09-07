@@ -38,9 +38,14 @@ object Adapter {
         }
       }
       var seq : Seq[ValueNonterminal] = Seq()
-      val (treeOpt, cycle_value) = Derivation.prevent_cycle(rule.lhs, i, j, Derivation.Tree(ruleindex, values))
-      if (treeOpt.isDefined) seq :+= ValueNonterminal(i, j, span, rule.lhs, Set(treeOpt.get))
-      if (cycle_value.isDefined) seq :+= cycle_value.get
+      val tree = Derivation.Tree(ruleindex, values)
+      val (treeOpt, cycle_value) = Derivation.prevent_cycle(rule.lhs, i, j, tree)
+      if (treeOpt.isDefined) 
+        seq :+= ValueNonterminal(i, j, span, rule.lhs, Set(treeOpt.get))
+      if (cycle_value.isDefined) {
+        throw new RuntimeException("BOOM!!")
+        seq :+= cycle_value.get
+      }
       seq
     }
   } 
@@ -187,8 +192,6 @@ object Adapter {
         earley.parse(start, k)       
       }
     }
-  }
-  
-  
+  } 
 
 }

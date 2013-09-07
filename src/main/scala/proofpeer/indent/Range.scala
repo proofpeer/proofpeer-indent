@@ -5,14 +5,31 @@ sealed class Range private (val intervals : List[(Int, Int)]) {
   def isUniversal : Boolean = intervals.isEmpty
   
   def contains(x : Int) : Boolean = {
-      if (isUniversal) return true
-      for ((left, right) <- intervals) {
-        if (left <= x && x <= right) return true
-      }
-      false
+    if (isUniversal) return true
+    for ((left, right) <- intervals) {
+      if (left <= x && x <= right) return true
+    }
+    false
   } 
   
-  override def toString() = intervals.toString
+  private def i2s(i:(Int, Int)) : String = {
+    if (i._1 == i._2) 
+      ""+i._1 
+    else
+      ""+i._1+"-"+i._2
+  }
+  
+  override def toString() : String = {
+    if (intervals.isEmpty) 
+      "[]"
+    else if (intervals.size == 1)
+      i2s(intervals.head)
+    else {
+      var output = "[" + i2s(intervals.head)
+      for (i <- intervals.tail) output += (", " + i2s(i))
+      output + "]"
+    }
+  }
   
 }
 
@@ -39,5 +56,5 @@ object Range {
   }  
     
   def singleton(x : Int) = new Range(List((x, x)))
-  
+    
 }

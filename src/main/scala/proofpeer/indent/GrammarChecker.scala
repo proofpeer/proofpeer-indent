@@ -73,7 +73,6 @@ object GrammarChecker {
       transformed_rules = Rule(rule.lhs, rule.rhs, constraint) :: transformed_rules
       for ((symbol, indices) <- symbols) {
         val multiplicity = indices.size
-        println("multiplicity = " + multiplicity)
         if (multiplicity == 0)
           errors = UndeclaredSymbolInConstraint(ruleindex, symbol) :: errors
         else if (multiplicity > 1)
@@ -140,9 +139,13 @@ object GrammarChecker {
   def checkNullableLexicals(lexicals : Map[Nonterminal, Int], nullables : Set[Nonterminal]) :
     List[GrammarError] =
   {
-    nullables.toList.collect {
+    /* !!!!!!! I have disabled this test for now, because it is OK to have
+     * nullable lexicals AS LONG THEY ARE NOT DIRECTLY REACHABLE FROM NORMAL NONTERMINALS!!!!!!
+     */
+    List()
+    /**nullables.toList.collect {
       case x if lexicals.contains(x) => NullableLexicalNonterminal(lexicals(x), x)
-    }
+    }*/
   }
   
   def check(grammar : Grammar) : GrammarInfo = {
