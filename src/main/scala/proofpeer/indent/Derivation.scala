@@ -119,10 +119,10 @@ object Derivation {
           visualize(grammar, prefix, derivations.head, display)
         else {
           var output = Array(prefix + "==========================") 
-          //val ordering = Ordering.by[Array[String], String](_.toList.toString)
-          var sorted : Set[Vector[String]] = Set()// = SortedSet()(ordering)
+          val ordering = Ordering.by[Array[String], String](_.fold("")(_ + _ + "/"))
+          var sorted : SortedSet[Array[String]] = SortedSet()(ordering)
           for (tree <- derivations) 
-            sorted += visualize(grammar, prefix, tree, display).toVector          
+            sorted += visualize(grammar, prefix, tree, display)         
           var first = true
           for (tree <- sorted) {
             if (first) 

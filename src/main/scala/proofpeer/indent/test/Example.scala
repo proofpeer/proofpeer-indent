@@ -1,8 +1,10 @@
-package proofpeer.indent
+package proofpeer.indent.test
 
-import API._
-import APIConversions._
-import Constraints._
+import proofpeer.indent._
+import proofpeer.indent.API._
+import proofpeer.indent.APIConversions._
+import proofpeer.indent.Constraints._
+import proofpeer.indent.Derivation
 
 object Example {
 
@@ -254,8 +256,7 @@ E => App
   def check(grammar : Grammar, document : String, start : Nonterminal, 
       result : String) : Boolean = 
     check(grammar, document, start, result, println(_)) 
-  
-    
+          
   def test(p : String => Unit) {
     check(g_prog2, "a 1", "E", null, p)
     check(g_prog2, ex1, "E", result1, p)
@@ -268,36 +269,14 @@ E => App
   }
   
   def teststr() : String = {
-    bug2()
     var s = ""
     def p(m : String) { s = s + m + "\n"}
     test(p)
     s
   }
   
-  def bug1() {
-    import scala.collection.immutable._
-    def translate(col : Array[String]) : String =
-      col.map(_.toString).fold("")(_ + "," + _)
-    val ordering = Ordering.by[Array[String], String](translate)
-    var collection = SortedSet()(ordering)  
-    val one = Array("elem1")
-    val two = Array("elem2")
-    collection += one
-    collection += two
-  }
-
-  def bug2() {
-    import scala.collection.immutable._
-    var collection = SortedSet("hello")
-    collection += "world"
-  }
-  
-  
   def main(args : Array[String]) {
-    //val p : String => Unit = (s => println(s))
-    //test(p)
-    println(teststr())
+    test(println(_))
   }
-    
+        
 }
