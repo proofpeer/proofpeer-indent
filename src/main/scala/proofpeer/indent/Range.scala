@@ -53,8 +53,12 @@ object Range {
     } else {
       throw new RuntimeException("invalid interval ("+left+", "+right+")")
     }
-  }  
+  }
+  
+  def outside_interval(left : Int, right : Int) : Range = {
+    add(interval(Int.MinValue, left - 1), interval(right + 1, Int.MaxValue))
+  }
     
   def singleton(x : Int) = new Range(List((x, x)))
-    
+      
 }

@@ -2,10 +2,10 @@ package proofpeer.indent
 
 import scala.collection.immutable._
 
-case class Dummy(nonterminal : API.Nonterminal, ruleindex : Int, dot : Int, origin : Int) {
+/*case class Dummy(nonterminal : API.Nonterminal, ruleindex : Int, dot : Int, origin : Int) {
   //def inc : DummyItem = Item(nonterminal, ruleindex, dot + 1, origin)
   //override def hashCode : Int = List
-}
+}*/
 
 
 /** The main entry point for the ProofPeer Indent API. 

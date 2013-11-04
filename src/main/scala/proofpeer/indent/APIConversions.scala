@@ -19,19 +19,22 @@ object APIConversions {
   
   def name2Symbol(name: String): Symbol = {
     if (name == "-") return TerminalRange(Range.universal)
-    val u = name.indexOf("-")
-    if (u < 0) {
+    var u = name.indexOf("-")
+    val v = name.indexOf("*")
+    if (u < 0 && v < 0) {
       val symbolname = name2SymbolName(name)
       if (isASCIIUpperLetter(name.charAt(0)))
         Nonterminal(symbolname)
       else 
         Terminal(symbolname)
     } else {
+      val outside = u < 0
+      if (outside) u = v
       val left = name2SymbolName(name.substring(0, u))
       val right = name2SymbolName(name.substring(u+1))
       (left, right) match {
         case (SymbolNameCode(left), SymbolNameCode(right)) =>
-          TerminalRange(Range.interval(left, right))
+          TerminalRange(if (outside) Range.outside_interval(left, right) else Range.interval(left, right))
         case _ => 
           throw new RuntimeException("Invalid terminal range '" + name + "'")
       }
@@ -69,6 +72,30 @@ object APIConversions {
       AnnotatedSymbol(name.substring(1), true)
     else
       AnnotatedSymbol(name, false)
+  }
+  
+  def literal(l: String) : String = {
+    import proofpeer.scala.lang._
+    var s = ""
+    var i = 0
+    val len = l.length()
+    while (i < len) {
+      val c = codePointAt(l, i)
+      i = i + charCount(c)
+      s = s + " " + c
+    }
+    s + " "
+  }
+  
+  def except(c : String) : String = {
+    import proofpeer.scala.lang._
+    if (!c.isEmpty()) {
+      val x = codePointAt(c, 0)
+      if (c.length() == charCount(x)) {
+        " " + x + "*" + x + " "
+      }
+    }
+    throw new RuntimeException("except can only be applied to single codepoints")
   }
   
   def string2rhs(s : String) : Vector[AnnotatedSymbol] = {
