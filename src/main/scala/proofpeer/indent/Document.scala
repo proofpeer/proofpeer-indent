@@ -77,7 +77,9 @@ class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
 
 object UnicodeDocument {
   
-  def fromString(text : String) : UnicodeDocument = {
+  def fromString(text : String) : UnicodeDocument = fromString(text, None)
+  
+  def fromString(text : String, tab : Option[Int]) : UnicodeDocument = {
     import proofpeer.scala.lang._
     var characters : List[(Int, Int, Int)] = List()
     var row = 0
@@ -98,6 +100,9 @@ object UnicodeDocument {
         case 32 /* SPACE */ =>
           index += 1
           column += 1 
+        case 9 /* TAB */ if tab.isDefined =>
+          index += 1
+          column += tab.get
         case _ =>
           characters = (row, column, code) :: characters
           index += charCount(code)
