@@ -276,7 +276,9 @@ E => App
   }
   
   def main(args : Array[String]) {
-    test(println(_))
+    //test(println(_))
+    lexrule("Literal", literal("\"") + "LiteralContentA" + literal("\""))
+    println("Hello: " + literal("\""))
   }
         
 }

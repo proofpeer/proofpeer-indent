@@ -74,24 +74,29 @@ object APIConversions {
       AnnotatedSymbol(name, false)
   }
   
-  def literal(l: String) : String = {
+  def literal(l: String) : String = literal(l, 0)._2
+
+  def literal(l: String, index : Int) : (Int, String) = {
     var s = ""
     var i = 0
+    var j = index
     val len = l.length()
     while (i < len) {
       val c = codePointAt(l, i)
       i = i + charCount(c)
-      s = s + " " + c
+      s = s + " " + c + "_" + j
+      j = j + 1
     }
-    s + " "
+    (j, s + " ")
   }
   
-  def except(c : String) : String = {
-    import proofpeer.scala.lang._
+  def except(c : String) : String = except(c, 0)
+  
+  def except(c : String, index : Int) : String = {
     if (!c.isEmpty()) {
       val x = codePointAt(c, 0)
       if (c.length() == charCount(x)) {
-        return " " + x + "*" + x + " "
+        return " " + x + "*" + x + "_" + index + " "
       }
     }
     throw new RuntimeException("except can only be applied to single codepoints")
