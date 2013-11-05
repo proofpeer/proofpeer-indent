@@ -91,7 +91,7 @@ object APIConversions {
     if (!c.isEmpty()) {
       val x = codePointAt(c, 0)
       if (c.length() == charCount(x)) {
-        " " + x + "*" + x + " "
+        return " " + x + "*" + x + " "
       }
     }
     throw new RuntimeException("except can only be applied to single codepoints")
