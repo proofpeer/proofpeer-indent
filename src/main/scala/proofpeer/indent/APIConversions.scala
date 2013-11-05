@@ -75,7 +75,6 @@ object APIConversions {
   }
   
   def literal(l: String) : String = {
-    import proofpeer.scala.lang._
     var s = ""
     var i = 0
     val len = l.length()
@@ -102,7 +101,7 @@ object APIConversions {
     if (s.trim().isEmpty())
       Vector()
     else
-      s.split(" ").map(name2AnnotatedSymbol(_)).toVector
+      split_nonempty(s, " ").map(name2AnnotatedSymbol(_)).toVector
   }
     
 }
