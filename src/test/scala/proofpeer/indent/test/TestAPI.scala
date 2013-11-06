@@ -21,5 +21,8 @@ object TestAPI extends Properties("API") {
   property("example6") = test(g_prog3, ex6, "E", result6)  
   property("example7") = test(g_prog3, ex7, "E", result7)  
   property("example8") = test(g_prog3, ex8, "E", result8)  
+  property("wellformed1") = rule("A", "B C", SameLine("B", "C")).info.wellformed
+  property("wellformed2") = rule("A", "B 0", SameLine("B", "0")).info.wellformed
+  property("wellformed3") = rule("A", "B -", SameLine("B", "-")).info.wellformed
        
 }

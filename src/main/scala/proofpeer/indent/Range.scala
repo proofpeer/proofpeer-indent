@@ -31,6 +31,10 @@ sealed class Range private (val intervals : List[(Int, Int)]) {
     }
   }
   
+  override def hashCode() : Int = intervals.hashCode
+  
+  override def equals(that : Any) : Boolean = intervals.equals(that.asInstanceOf[Range].intervals)
+  
 }
 
 object Range {
