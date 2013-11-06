@@ -7,11 +7,13 @@ import proofpeer.scala.lang._
 object APIConversions {
      
   def name2SymbolName(name: String): SymbolName = {
-    val all_letters = name.forall(isASCIILetter)
+    val alphanumeric = 
+      !name.isEmpty && isASCIILetter(name.head) && 
+      name.tail.forall(c => isASCIILetter(c) || isASCIIDigit(c))
     val all_digits = name.forall(isASCIIDigit)
-    if (name == "" || !(all_letters || all_digits))
+    if (name == "" || !(alphanumeric || all_digits))
       throw new RuntimeException("Cannot convert name '" + name +"' to SymbolName")
-    if (all_letters)
+    if (alphanumeric)
       SymbolNameStr(name)
     else
       SymbolNameCode(name.toInt)
