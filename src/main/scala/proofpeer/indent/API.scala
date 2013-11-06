@@ -139,6 +139,11 @@ object API {
   def rule(lhs : Nonterminal, rhs : String) : Grammar =
     rule(lhs, rhs, Constraints.Unconstrained)
     
+  def tokenrule(lhs : Nonterminal, range : Range) : Grammar = {
+    val symbol = AnnotatedSymbol(IndexedSymbol(TerminalRange(range), None), false)
+    Grammar(Vector(Rule(lhs, Vector(symbol), Constraints.Unconstrained)), Vector())
+  }
+       
   /** Compact specification of grammars. */        
   def lexical(nonterminal : Nonterminal) : Grammar =
     Grammar(Vector(), Vector(Lexical(nonterminal)))

@@ -5,11 +5,22 @@ import scala.collection.immutable._
 
 object Derivation {
 
-  sealed abstract class Value 
-  case class ValueToken(token : Token) extends Value 
+  sealed abstract class Value {
+    def isUnique : Boolean;
+  }
+  case class ValueToken(token : Token) extends Value {
+    def isUnique : Boolean = true
+  }
   case class ValueNonterminal(i : Int, j : Int, span : Option[Span], 
       nonterminal : Nonterminal, derivations : Set[Tree]) extends Value
-
+  {
+    def isUnique : Boolean = {
+      if (derivations.size != 1) return false
+      val tree = derivations.head
+      tree.rhs.forall(_.isUnique)
+    }
+  }
+  
   case class Tree(ruleindex : Int, rhs : Vector[Value])
   
   /** Returns true iff all derivations represented by value1 are also derivations represented by 
