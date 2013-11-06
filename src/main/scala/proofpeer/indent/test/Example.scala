@@ -229,6 +229,22 @@ E => App
     }    
   }
   
+  def parsesUniquely(grammar : Grammar, document : String, start : Nonterminal) : Boolean = {
+   val g = grammar.parser.parse(document, start)
+    g match {
+      case None => 
+        println("Does not parse.")
+        false
+      case Some(v) => 
+        if (v.isUnique)
+          true
+        else {
+          println("ambiguous parse tree:\n"+Derivation.visualize(grammar, v))
+          false
+        }
+   }
+  }
+  
   def check(grammar : Grammar, document : String, start : Nonterminal, 
       result : String, println : String => Unit) : Boolean = 
   {

@@ -14,7 +14,7 @@ case class Span(
   /** This assumes that s does not overlap with this span and actually comes ''behind'' it. */
   def addBehind(s : Span) : Span = {
     val _firstRow = firstRow
-    val _lastRow = lastRow
+    val _lastRow = s.lastRow
     val _leftMostInFirst = leftMostInFirst
     val _leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
     val _leftMostFirst = leftMostFirst

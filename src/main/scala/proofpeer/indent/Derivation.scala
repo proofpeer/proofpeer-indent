@@ -125,7 +125,7 @@ object Derivation {
     if (!display(value)) return Array()
     value match {
       case ValueToken(token) => Array(prefix + "token: " + token.terminal)
-      case ValueNonterminal(i, j, _, nonterminal, derivations) =>
+      case ValueNonterminal(i, j, span, nonterminal, derivations) =>
         if (derivations.size == 1) 
           visualize(grammar, prefix, derivations.head, display)
         else {
