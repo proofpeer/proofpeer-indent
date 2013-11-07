@@ -1,6 +1,6 @@
 package proofpeer.indent
 
-/** The members of Span correspond to the [[Constraints.LayoutEntity]] cases. */
+/** The members of Span correspond to the [[Constraints.LayoutEntity]] cases, except for firstTokenIndex and lastTokenIndex */
 case class Span(
   firstRow : Int,
   lastRow : Int,
@@ -8,7 +8,9 @@ case class Span(
   leftMost : Int,
   leftMostFirst : Int,
   leftMostRest : Option[Int],
-  rightMostLast : Int) 
+  rightMostLast : Int,
+  firstTokenIndex : Int,
+  lastTokenIndex : Int) 
 {
     
   /** This assumes that s does not overlap with this span and actually comes ''behind'' it. */
@@ -28,7 +30,10 @@ case class Span(
       }
       else
         s.leftMostRest
-    Span(_firstRow, _lastRow, _leftMostInFirst, _leftMost, _leftMostFirst, _leftMostRest, _rightMostLast)   
+    val _firstTokenIndex = firstTokenIndex
+    val _lastTokenIndex = s.lastTokenIndex
+    Span(_firstRow, _lastRow, _leftMostInFirst, _leftMost, _leftMostFirst, _leftMostRest, _rightMostLast, 
+        _firstTokenIndex, _lastTokenIndex)   
   }
     
 }
@@ -40,6 +45,8 @@ trait Document {
   def size : Int
   
   def getToken(position : Int) : Token
+  
+  def getText(position : Int, len : Int) : String
 
 }
 
@@ -69,8 +76,32 @@ class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
     val (row, column, code) = characters (position)
     val (_, column0, _) = characters(rows(row))
     val terminal = Terminal(SymbolNameCode(code)) 
-    val span = Span(row, row, column0, column, column, None, column)
+    val span = Span(row, row, column0, column, column, None, column, position, position)
     Token(terminal, position, span)
+  }
+  
+  def getText(position : Int, len : Int) : String = {
+    if (len == 0) return ""
+    var (row, column, code) = characters (position)
+    var codes : List[Int] = List(code)
+    var i = 1
+    while (i < len) {
+      var (row2, column2, code) = characters (position + i)
+      while (row < row2) {
+        column = -1
+        row = row + 1
+        codes = '\n' :: codes
+      }
+      column = column + 1
+      while (column < column2) {
+        column = column + 1
+        codes = ' '  :: codes
+      } 
+      codes = code :: codes
+      i = i + 1
+    }
+    var arr = codes.reverse.toArray
+    new String(arr, 0, arr.length)
   }
   
 }

@@ -1,16 +1,25 @@
 package proofpeer.indent
 
-import API.Nonterminal
+import API._
 import scala.collection.immutable._
+import scala.language.dynamics
 
 object Derivation {
 
   sealed abstract class Value {
     def isUnique : Boolean;
+    def wrap(grammar : Grammar, document : Document) : ValueWrapper = wrap(grammar, document, false)
+    def wrap(grammar : Grammar, document : Document, pickAnyDerivation : Boolean) : ValueWrapper = {
+      new ValueWrapper(grammar, document, this, pickAnyDerivation)
+    }
+    def span : Option[Span]
   }
+  
   case class ValueToken(token : Token) extends Value {
     def isUnique : Boolean = true
+    def span = Some(token.span)
   }
+  
   case class ValueNonterminal(i : Int, j : Int, span : Option[Span], 
       nonterminal : Nonterminal, derivations : Set[Tree]) extends Value
   {
@@ -192,5 +201,47 @@ object Derivation {
   {
     visualize(grammar, "", value, defaultDisplay(_)).fold("")((x, y) => x + "\n" + y)
   }
+  
+  class ValueWrapper(grammar : API.Grammar, document : Document, value : Value, pickAnyDerivation : Boolean) extends Dynamic {
+    
+    def _value : Value = value
+    
+    def _text : String = {
+      value.span match {
+        case None => ""
+        case Some(span) => document.getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+      }
+    }
+    
+    def _lookup(name : String) : ValueWrapper = _lookup(name, pickAnyDerivation)
+    
+    def _lookup(name : String, pickAnyDerivation : Boolean) : ValueWrapper = {
+      value match {
+        case _ : ValueToken => 
+          throw new RuntimeException("Cannot lookup '"+name+"' within a token value.")
+        case value : ValueNonterminal =>
+          if (value.derivations.isEmpty) 
+            throw new RuntimeException("Cannot lookup '"+name+
+                "', there are no derivations for nonterminal '"+value.nonterminal+"'.")
+          val tree = value.derivations.head // pick one of the derivations
+          if (!pickAnyDerivation && value.derivations.size != 1)
+            throw new RuntimeException("Cannot lookup '"+name+
+                "', there are multiple derivations for nonterminal '"+value.nonterminal+"'.")
+          val rule = grammar.rules(tree.ruleindex) 
+          var i = 0
+          for (symbol <- rule.rhs) {
+            if (symbol.indexedSymbol.toString == name) {
+              return new ValueWrapper(grammar, document, tree.rhs(i), pickAnyDerivation)
+            }
+            i = i + 1
+          }
+          return null
+      }
+    }
+    
+    def selectDynamic(name : String) : ValueWrapper = _lookup(name)
+    
+  }
 
 }
+

@@ -81,6 +81,7 @@ object Adapter {
     
   class D(val size : Int, document : Document) extends Document {
     def getToken(position : Int) = document.getToken(position)
+    def getText(position : Int, len : Int) = document.getText(position, len)
   }
   
   private def iValue : IValue = Set(Vector())
@@ -155,6 +156,7 @@ object Adapter {
         new Document { 
           def size = j 
           def getToken(position : Int) = document.getToken(position)
+          def getText(position : Int, len : Int) = document.getText(position, len)
         }
       val earley = new Earley(gInner, d)
       val (bins, k) = earley.recognize(blackboxes, i)
