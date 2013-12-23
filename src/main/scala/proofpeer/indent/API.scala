@@ -93,11 +93,15 @@ object API {
       if (ignore_layout) "^" + indexedSymbol else indexedSymbol.toString
   }
   
+  type ParseAction = Map[IndexedSymbol, Any] => Any
+  
+  val defaultParseAction : ParseAction = (x => x)
+
   import Constraints.Constraint
- 
+  
   /** A grammar rule with constraints. */
   case class Rule[S](lhs : Nonterminal, rhs : Vector[AnnotatedSymbol], 
-                  constraint : Constraint[S])
+                  constraint : Constraint[S], action : ParseAction)
       
   /** Grammar annotations. */
   sealed abstract class Annotation
@@ -133,7 +137,7 @@ object API {
     * Uses [[APIConversions.string2rhs]] to process the `rhs` parameter.
     */
   def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar =
-    Grammar(Vector(Rule(lhs, APIConversions.string2rhs(rhs), constraint)), Vector())
+    Grammar(Vector(Rule(lhs, APIConversions.string2rhs(rhs), constraint, defaultParseAction)), Vector())
 
   /** Compact specification of grammars. */    
   def rule(lhs : Nonterminal, rhs : String) : Grammar =
@@ -156,7 +160,7 @@ object API {
       val b = symbols(i).indexedSymbol
       constraints = (Constraints.Connect(a, b)) :: constraints
     }
-    Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints))),
+    Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints), defaultParseAction)),
       Vector(Lexical(lhs)))
   }
     

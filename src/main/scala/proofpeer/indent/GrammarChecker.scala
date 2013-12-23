@@ -70,7 +70,7 @@ object GrammarChecker {
     for (ruleindex <- 0 to rules.size - 1) {
       val rule = rules(ruleindex)
       val (constraint, symbols) = translateConstraint(rule.rhs.map(_.indexedSymbol), rule.constraint, Map())
-      transformed_rules = Rule(rule.lhs, rule.rhs, constraint) :: transformed_rules
+      transformed_rules = Rule(rule.lhs, rule.rhs, constraint, rule.action) :: transformed_rules
       for ((symbol, indices) <- symbols) {
         val multiplicity = indices.size
         if (multiplicity == 0)
