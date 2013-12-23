@@ -241,6 +241,62 @@ object Derivation {
     
     def selectDynamic(name : String) : ValueWrapper = _lookup(name)
     
+  }  
+  
+  sealed class ParseResult(val grammar : Grammar, val document : Document, val _result : Any, val value : Value) {
+    def resultAs[T]() : T = _result.asInstanceOf[T]
+    def result : Any = _result
+    def span : Option[Span] = value.span
+    def text : String = {
+      span match {
+        case None => ""
+        case Some(span) => document.getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+      }      
+    } 
+  }
+  
+  sealed class Context(val _grammar : Grammar, val _document : Document, val _value : Value, 
+                       val _input : Map[IndexedSymbol, ParseResult]) extends Dynamic 
+  {
+    import APIConversions._
+
+    def _span : Option[Span] = _value.span
+    
+    def _text : String = {
+      _span match {
+        case None => ""
+        case Some(span) => _document.getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+      }
+    }
+       
+    def selectDynamic(name : String) : ParseResult = {
+      _input.get(name) match {
+        case None =>
+          throw new RuntimeException("no symbol '"+name+"' in rule found")
+        case Some(r) => r
+      }
+    }
+  } 
+  
+  def computeParseResult(grammar : Grammar, document : Document, tokenResult : ValueToken => Any, value : Value) : ParseResult = {
+    value match {
+      case v : ValueToken => new ParseResult(grammar, document, tokenResult(v), value)
+      case v : ValueNonterminal =>
+        if (v.derivations.size != 1) 
+          throw new RuntimeException("Cannot construct parse result for ambiguous value of: "+v.nonterminal)
+        else {
+          val tree = v.derivations.head
+          val rule = grammar.rules(tree.ruleindex)
+          var i = 0
+          var m : Map[IndexedSymbol, ParseResult] = Map()
+          for (s <- rule.rhs) {
+            val result = computeParseResult(grammar, document, tokenResult, tree.rhs(i))
+            m += (s.indexedSymbol -> result)
+            i = i + 1
+          }
+          new ParseResult(grammar, document, rule.action(new Context(grammar, document, value, m)), value)
+        }       
+    }   
   }
 
 }

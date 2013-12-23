@@ -93,9 +93,9 @@ object API {
       if (ignore_layout) "^" + indexedSymbol else indexedSymbol.toString
   }
   
-  type ParseAction = Map[IndexedSymbol, Any] => Any
+  type ParseAction = Derivation.Context => Any
   
-  val defaultParseAction : ParseAction = (x => x)
+  val defaultParseAction : ParseAction = (c => null)
 
   import Constraints.Constraint
   
@@ -136,16 +136,21 @@ object API {
   /** Compact specification of grammars.
     * Uses [[APIConversions.string2rhs]] to process the `rhs` parameter.
     */
-  def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar =
-    Grammar(Vector(Rule(lhs, APIConversions.string2rhs(rhs), constraint, defaultParseAction)), Vector())
+  def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol], action : ParseAction) : Grammar =
+    Grammar(Vector(Rule(lhs, APIConversions.string2rhs(rhs), constraint, action)), Vector())
 
-  /** Compact specification of grammars. */    
+  def rule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar =
+    rule(lhs, rhs, constraint, defaultParseAction)
+    
+  def rule(lhs : Nonterminal, rhs : String, action : ParseAction) : Grammar =
+    rule(lhs, rhs, Constraints.Unconstrained[IndexedSymbol], action)
+
   def rule(lhs : Nonterminal, rhs : String) : Grammar =
-    rule(lhs, rhs, Constraints.Unconstrained)
+    rule(lhs, rhs, Constraints.Unconstrained[IndexedSymbol])
     
   def tokenrule(lhs : Nonterminal, range : Range) : Grammar = {
     val symbol = AnnotatedSymbol(IndexedSymbol(TerminalRange(range), None), false)
-    Grammar(Vector(Rule(lhs, Vector(symbol), Constraints.Unconstrained)), Vector())
+    Grammar(Vector(Rule(lhs, Vector(symbol), Constraints.Unconstrained, defaultParseAction)), Vector())
   }
        
   /** Compact specification of grammars. */        
@@ -166,7 +171,7 @@ object API {
     
   def lexrule(lhs : Nonterminal, rhs : String) : Grammar = 
     lexrule(lhs, rhs, Constraints.Unconstrained)
-  
+      
   def example1 : Grammar = {
     import APIConversions._
     import Constraints._
