@@ -25,7 +25,11 @@ object Constraints {
     
   def implies(asm : Constraint[IndexedSymbol], concl : Constraint[IndexedSymbol]) 
         : Constraint [IndexedSymbol] =
-    Implies(asm, concl)
+    Implies(asm, concl)      
+    
+  def ifThenElse(asm : Constraint[IndexedSymbol], thenConcl : Constraint[IndexedSymbol], 
+        elseConcl : Constraint[IndexedSymbol]) : Constraint [IndexedSymbol] =
+    and(implies(asm, thenConcl), implies(not(asm), elseConcl))          
   
   def Unconstrained[S] : Constraint[S] = And[S](List())
     
@@ -91,13 +95,16 @@ object Constraints {
   def Connect(A : IndexedSymbol, B : IndexedSymbol) : Constraint [IndexedSymbol] =
     and(SameLine(A, B), Eq(RightMostLast(A), LeftMostFirst(B), -1))
  
-  /** There is no non-whitespace before A in the first line of A. */
+  /** There is no non-whitespace before A in the first line of A,
+      and no other line of A is indented more than the first line. 
+    */
   def First(A : IndexedSymbol) : Constraint [IndexedSymbol] = 
-    Eq(LeftMostInFirst(A), LeftMostFirst(A), 0)
+    and(Eq(LeftMostInFirst(A), LeftMostFirst(A), 0),
+        Leq(LeftMostFirst(A), LeftMostRest(A), 0))
     
-  /** The first line of A is weakly indented less than all other lines of A. */
+  /** The first line of A is indented less than all other lines of A. */
   def Protrude(A : IndexedSymbol) : Constraint [IndexedSymbol] = 
-    or(Line(A), Less(LeftMostFirst(A), LeftMostRest(A), 0))
+    or(Line(A), and(First(A), Less(LeftMostFirst(A), LeftMostRest(A), 0)))
     
   /** A and B are weakly aligned at their left border. */
   def WeakAlign(A : IndexedSymbol, B : IndexedSymbol) : Constraint [IndexedSymbol] = 
@@ -109,12 +116,16 @@ object Constraints {
        
   /** A and B are strongly aligned at their left border. */
   def Align(A : IndexedSymbol, B : IndexedSymbol) : Constraint [IndexedSymbol] = 
-    and(First(A), First(B), WeakAlign(A, B))
+    or(NullSpan(A), NullSpan(B), and(First(A), First(B), WeakAlign(A, B)))
     
   /** B is strongly indented relative to A. */
   def Indent(A : IndexedSymbol, B : IndexedSymbol) : Constraint [IndexedSymbol] =
     or(Eq(LastRow(A), LastRow(B), 0),
-       and(First(A), WeakIndent(A, B), Less(LeftMost(A), LeftMostInFirst(B), 0)))
+       and(First(A), WeakIndent(A, B), Eq(LeftMost(A), LeftMostFirst(A), 0)))
+  
+  /** Evaluates to Undefined if A has a null span, otherwise to False */
+  def NullSpan(A : IndexedSymbol) : Constraint [IndexedSymbol] = 
+    Less(FirstRow(A), FirstRow(A), 0)
   
   private def findSymbol[S](s : S, symbols : Vector[S], found : Map[S, Set[Int]]) : 
     (Int, Map[S, Set[Int]]) = 
