@@ -92,8 +92,8 @@ object API {
     override def toString : String = 
       if (ignore_layout) "^" + indexedSymbol else indexedSymbol.toString
   }
-  
-  type ParseAction = Derivation.Context => Any
+    
+  type ParseAction = Derivation.Context => Any 
   
   val defaultParseAction : ParseAction = (c => null)
 

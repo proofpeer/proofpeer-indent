@@ -278,9 +278,12 @@ object Derivation {
     }
   } 
   
-  def computeParseResult(grammar : Grammar, document : Document, tokenResult : ValueToken => Any, value : Value) : ParseResult = {
+  def computeParseResult(grammar : Grammar, document : Document, 
+      tokenResult : ValueToken => Any, value : Value) : ParseResult = 
+  {
     value match {
-      case v : ValueToken => new ParseResult(grammar, document, tokenResult(v), value)
+      case v : ValueToken => 
+        new ParseResult(grammar, document, tokenResult(v), value)
       case v : ValueNonterminal =>
         if (v.derivations.size != 1) 
           throw new RuntimeException("Cannot construct parse result for ambiguous value of: "+v.nonterminal)
@@ -294,7 +297,8 @@ object Derivation {
             m += (s.indexedSymbol -> result)
             i = i + 1
           }
-          new ParseResult(grammar, document, rule.action(new Context(grammar, document, value, m)), value)
+          val result = rule.action(new Context(grammar, document, value, m))
+          new ParseResult(grammar, document, result, value)
         }       
     }   
   }
