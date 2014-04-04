@@ -158,6 +158,10 @@ object API {
     Grammar(Vector(), Vector(Lexical(nonterminal)))
   
   def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar = {
+    lexrule(lhs, rhs, constraint, defaultParseAction)
+  }
+  
+  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol], action : ParseAction) : Grammar = {
     val symbols = APIConversions.string2rhs(rhs)
     var constraints = List(constraint)
     for (i <- 1 to (symbols.size - 1)) {
@@ -165,12 +169,15 @@ object API {
       val b = symbols(i).indexedSymbol
       constraints = (Constraints.Connect(a, b)) :: constraints
     }
-    Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints), defaultParseAction)),
+    Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints), action)),
       Vector(Lexical(lhs)))
   }
     
+  def lexrule(lhs : Nonterminal, rhs : String, action : ParseAction) : Grammar =
+    lexrule(lhs, rhs, Constraints.Unconstrained, action)
+
   def lexrule(lhs : Nonterminal, rhs : String) : Grammar = 
-    lexrule(lhs, rhs, Constraints.Unconstrained)
+    lexrule(lhs, rhs, Constraints.Unconstrained[IndexedSymbol])
       
   def example1 : Grammar = {
     import APIConversions._
