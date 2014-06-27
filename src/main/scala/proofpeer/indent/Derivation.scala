@@ -253,6 +253,7 @@ object Derivation {
         case Some(span) => document.getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
       }      
     } 
+    def codes : Vector[Int] = proofpeer.scala.lang.codePoints(text)
   }
   
   sealed class Context(val _grammar : Grammar, val _document : Document, val _value : Value, 

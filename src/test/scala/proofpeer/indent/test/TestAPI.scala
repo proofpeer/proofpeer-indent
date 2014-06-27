@@ -25,9 +25,12 @@ object TestAPI extends Properties("API") {
   property("wellformed2") = rule("A", "B 0", SameLine("B", "0")).info.wellformed
   property("wellformed3") = rule("A", "B -", SameLine("B", "-")).info.wellformed
       
+
+  val p = LexicalPriority(0, None)
+
   val g_comments = 
-    lexrule("Anything", "AnythingS") ++
-    lexrule("Anything", "AnythingNS") ++
+    lexrule("Anything", "AnythingS", p) ++
+    lexrule("Anything", "AnythingNS", p) ++
     rule("AnythingS", "Anything STAR") ++ 
     rule("AnythingNS", "") ++
     rule("AnythingNS", "AnythingNS NoStar") ++
@@ -36,21 +39,21 @@ object TestAPI extends Properties("API") {
     tokenrule("NoStarOrSlash", Range.add(Range.outside_interval(42, 47), Range.interval(43, 46))) ++
     tokenrule("NoStar", Range.outside_interval(42, 42)) ++
     tokenrule("STAR", Range.singleton(42)) ++
-    lexical("STAR") ++
-    lexical("NoStarOrSlash") ++ 
-    lexical("NoStar") ++ 
-    lexical("AnythingS") ++ 
-    lexical("AnythingNS") ++
-    lexrule("Comment", literal("//")) ++
-    lexrule("Comment", literal("##")) ++
+    lexical("STAR", p) ++
+    lexical("NoStarOrSlash", p) ++ 
+    lexical("NoStar", p) ++ 
+    lexical("AnythingS", p) ++ 
+    lexical("AnythingNS", p) ++
+    lexrule("Comment", literal("//"), p) ++
+    lexrule("Comment", literal("##"), p) ++
     rule("Comment", "Comment -", SameLine("Comment", "-")) ++
-    lexrule("OpenBlockComment", literal("/*")) ++
-    lexrule("CloseBlockComment", literal("*/")) ++ 
+    lexrule("OpenBlockComment", literal("/*"), p) ++
+    lexrule("CloseBlockComment", literal("*/"), p) ++ 
     rule("BlockComment", "OpenBlockComment Anything CloseBlockComment") ++
-    lexical("BlockComment") ++
-    lexrule("AnyComment", "Comment") ++
-    lexrule("AnyComment", "BlockComment") ++
-    lexrule("WS", "") ++
+    lexical("BlockComment", p) ++
+    lexrule("AnyComment", "Comment", p) ++
+    lexrule("AnyComment", "BlockComment", p) ++
+    lexrule("WS", "", p) ++
     rule("WS", "WS AnyComment", Less[IndexedSymbol](LastRow("WS"), FirstRow("AnyComment"), 0)) ++
     rule("S", "WS")
     

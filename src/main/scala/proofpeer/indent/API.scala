@@ -106,8 +106,10 @@ object API {
   /** Grammar annotations. */
   sealed abstract class Annotation
   
+  case class LexicalPriority(scope : Int, priority : Option[Int])
+
   /** Grammar annotation to mark a nonterminal as lexical. */
-  case class Lexical(nonterminal : Nonterminal) extends Annotation
+  case class Lexical(nonterminal : Nonterminal, priority : LexicalPriority) extends Annotation
       
   /** A grammar consists of rules and annotations. */
   case class Grammar(rules : Vector[Rule[IndexedSymbol]], annotations : Vector[Annotation]) {
@@ -154,14 +156,16 @@ object API {
   }
        
   /** Compact specification of grammars. */        
-  def lexical(nonterminal : Nonterminal) : Grammar =
-    Grammar(Vector(), Vector(Lexical(nonterminal)))
+  def lexical(nonterminal : Nonterminal, prio : LexicalPriority) : Grammar =
+    Grammar(Vector(), Vector(Lexical(nonterminal, prio)))
   
-  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol]) : Grammar = {
-    lexrule(lhs, rhs, constraint, defaultParseAction)
+  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol], prio : LexicalPriority) : Grammar = {
+    lexrule(lhs, rhs, constraint, defaultParseAction, prio)
   }
   
-  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol], action : ParseAction) : Grammar = {
+  def lexrule(lhs : Nonterminal, rhs : String, constraint : Constraint[IndexedSymbol], action : ParseAction, 
+    prio : LexicalPriority) : Grammar = 
+  {
     val symbols = APIConversions.string2rhs(rhs)
     var constraints = List(constraint)
     for (i <- 1 to (symbols.size - 1)) {
@@ -170,14 +174,14 @@ object API {
       constraints = (Constraints.Connect(a, b)) :: constraints
     }
     Grammar(Vector(Rule(lhs, symbols, Constraints.And(constraints), action)),
-      Vector(Lexical(lhs)))
+      Vector(Lexical(lhs, prio)))
   }
     
-  def lexrule(lhs : Nonterminal, rhs : String, action : ParseAction) : Grammar =
-    lexrule(lhs, rhs, Constraints.Unconstrained, action)
+  def lexrule(lhs : Nonterminal, rhs : String, action : ParseAction, prio : LexicalPriority) : Grammar =
+    lexrule(lhs, rhs, Constraints.Unconstrained, action, prio)
 
-  def lexrule(lhs : Nonterminal, rhs : String) : Grammar = 
-    lexrule(lhs, rhs, Constraints.Unconstrained[IndexedSymbol])
+  def lexrule(lhs : Nonterminal, rhs : String, prio : LexicalPriority) : Grammar = 
+    lexrule(lhs, rhs, Constraints.Unconstrained[IndexedSymbol], prio)
       
   def example1 : Grammar = {
     import APIConversions._
@@ -186,10 +190,10 @@ object API {
       rule("ST", "if E then ^ST_1 else ST_2", Align("if", "ST_1")) ++
       rule("A", "") ++
       rule("B", "A A") ++
-      lexical("A") ++
-      lexical("B") ++
-      lexical("ST") ++
-      lexical("E")
+      lexical("A", LexicalPriority(0, None)) ++
+      lexical("B", LexicalPriority(0, None)) ++
+      lexical("ST", LexicalPriority(0, None)) ++
+      lexical("E", LexicalPriority(0, None))
     grammar  
   }
   

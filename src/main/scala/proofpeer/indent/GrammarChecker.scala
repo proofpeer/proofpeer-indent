@@ -41,11 +41,10 @@ object GrammarChecker {
   }
   
   /** A lexical nonterminal depends on a normal nonterminal, i.e. a nonterminal that is not lexical. */
-  case class InvalidLexicalDependency(ruleindex : Int, annotationindex : Int,
-      lexical : Nonterminal, normal : Nonterminal) extends GrammarError 
+  case class InvalidLexicalDependency(ruleindex : Int, lexical : Nonterminal, normal : Nonterminal) extends GrammarError 
   {
     def rules = List(ruleindex)
-    def annotations = List(annotationindex)
+    def annotations = List()
   }
   
   /** A lexical nonterminal is nullable. */
@@ -82,21 +81,25 @@ object GrammarChecker {
     (transformed_rules.reverse.toVector, errors.reverse)
   }
   
-  def computeLexicals(grammar : Grammar) : Map[Nonterminal, Int] = {
-    var lexicals : Map[Nonterminal, Int] = Map()
-    val annotations = grammar.annotations
-    for (annotationindex <- (annotations.size - 1) to 0 by -1) {
-      val annotation = annotations(annotationindex)
+  def computeLexicals(grammar : Grammar) : Map[Nonterminal, LexicalPriority] = {
+    var lexicals : Map[Nonterminal, LexicalPriority] = Map()
+    for (annotation <- grammar.annotations) {
       annotation match {
-        case Lexical(nonterminal) =>
-          lexicals = lexicals + (nonterminal -> annotationindex)
+        case Lexical(nonterminal, p) =>
+          lexicals.get(nonterminal) match {
+            case None => 
+              lexicals = lexicals + (nonterminal -> p)
+            case Some(oldP) =>
+              if (!oldP.priority.isDefined) 
+                lexicals = lexicals + (nonterminal -> p)
+          }
         case _ =>
       }      
     }
     lexicals
   }
   
-  def checkLexicalDependencies(grammar : Grammar, lexicals : Map[Nonterminal, Int]) :
+  def checkLexicalDependencies(grammar : Grammar, lexicals : Map[Nonterminal, LexicalPriority]) :
     List[GrammarError] =
   {
     val rules = grammar.rules
@@ -108,7 +111,7 @@ object GrammarChecker {
           case AnnotatedSymbol(IndexedSymbol(x : Nonterminal, _), _) if !lexicals.contains(x) => x
         }
         for (dependency <- dependencies) {
-          errors = InvalidLexicalDependency(ruleindex, lexicals(rule.lhs), 
+          errors = InvalidLexicalDependency(ruleindex, 
               rule.lhs, dependency) :: errors
         }
       }
@@ -136,7 +139,7 @@ object GrammarChecker {
     nullables
   }
   
-  def checkNullableLexicals(lexicals : Map[Nonterminal, Int], nullables : Set[Nonterminal]) :
+  def checkNullableLexicals(lexicals : Map[Nonterminal, LexicalPriority], nullables : Set[Nonterminal]) :
     List[GrammarError] =
   {
     /* !!!!!!! I have disabled this test for now, because it is OK to have
@@ -160,7 +163,7 @@ object GrammarChecker {
   case class GrammarInfo (
     errors : List[GrammarError], 
     rules : Vector[Rule[Int]],
-    lexicals : Map[Nonterminal, Int],
+    lexicals : Map[Nonterminal, LexicalPriority],
     nullables : Set[Nonterminal])
   {
     def wellformed = errors.isEmpty

@@ -8,10 +8,17 @@ import proofpeer.indent.Derivation
 
 object Example {
 
+  var priority = 0
+
+  def lrule(l : Nonterminal, r : String) : Grammar = {
+    priority = priority + 1
+    lexrule(l, r, LexicalPriority(0, Some (priority)))
+  }
+
   def g_letters_and_digits = 
-    lexrule("Letter", "97-122") ++ 
-    lexrule("Letter", "65-90") ++
-    lexrule("Digit", "48-57")
+    lrule("Letter", "97-122") ++ 
+    lrule("Letter", "65-90") ++
+    lrule("Digit", "48-57")
 
   def g_prog1 = (
        g_letters_and_digits 
@@ -21,10 +28,10 @@ object Example {
     ++ rule("App", "E App")         
     ++ rule("App", "Id") 
     
-    ++ lexrule("Id", "Letter IdA")
-    ++ lexrule("IdA", "")
-    ++ lexrule("IdA", "Digit IdA")
-    ++ lexrule("IdA", "Letter IdA")
+    ++ lrule("Id", "Letter IdA")
+    ++ lrule("IdA", "")
+    ++ lrule("IdA", "Digit IdA")
+    ++ lrule("IdA", "Letter IdA")
   )
   
   def g_prog2 = (
@@ -35,9 +42,9 @@ object Example {
     ++ rule("App", "E App")         
     ++ rule("App", "Id") 
     
-    ++ lexrule("Id", "Letter")
-    ++ lexrule("Id", "Id Letter")
-    ++ lexrule("Id", "Id Digit")
+    ++ lrule("Id", "Letter")
+    ++ lrule("Id", "Id Letter")
+    ++ lrule("Id", "Id Digit")
   )
   
   def g_prog3 = (
@@ -53,15 +60,15 @@ object Example {
    ++ rule("Atomic", "Nil")
    ++ rule("Atomic", "Null")
    
-   ++ lexrule("Id", "Letter")
-   ++ lexrule("Id", "Id Letter")
-   ++ lexrule("Id", "Id Digit")
+   ++ lrule("Id", "Letter")
+   ++ lrule("Id", "Id Letter")
+   ++ lrule("Id", "Id Digit")
    
-   ++ lexrule("Num", "Digit")
-   ++ lexrule("Num", "Digit Num")
+   ++ lrule("Num", "Digit")
+   ++ lrule("Num", "Digit Num")
    
-   ++ lexrule("Nil", "110 105 108")
-   ++ lexrule("Null", "110 117 108_1 108_2")
+   ++ lrule("Nil", "110 105 108")
+   ++ lrule("Null", "110 117 108_1 108_2")
   )
 
   def ex1 = "abcdef"

@@ -2,6 +2,7 @@ package proofpeer.indent.earley
 
 import proofpeer.indent.API
 import proofpeer.indent.API.Nonterminal
+import proofpeer.indent.API.LexicalPriority
 import proofpeer.indent.Derivation
 import proofpeer.indent.Derivation.ValueNonterminal
 import proofpeer.indent.Document
@@ -140,7 +141,7 @@ object Adapter {
         
   }
   
-  class GOuter(outerRules : Rules, innerRules : Rules, lexicals : Map[Nonterminal, Int]) 
+  class GOuter(outerRules : Rules, innerRules : Rules, lexicals : Map[Nonterminal, LexicalPriority]) 
     extends G(outerRules) 
   {
     val gInner = new GInner(innerRules)
@@ -164,18 +165,36 @@ object Adapter {
       if (results.isEmpty) 
         Map()
       else {
-        var nonterminal : Nonterminal = null
-        var value : Value = null
-        var priority = 0
+        var nonprio : Map[Nonterminal, Value] = Map()
+        var prio : Map[Int, (Int, Map[Nonterminal, Value])] = Map()
         for ((n, v) <- results) {
           val p = lexicals(n)
-          if (nonterminal == null || p > priority) {
-            priority = p
-            nonterminal = n
-            value = v
+          if (!p.priority.isDefined) 
+            nonprio = nonprio + (n -> v)
+          else {
+            val newPriority = p.priority.get
+            prio.get(p.scope) match {
+              case None =>
+                prio = prio + (p.scope -> (newPriority, Map(n -> v)))
+              case Some((currentPriority, m)) =>
+                if (newPriority == currentPriority) {
+                  val newM = m + (n -> v)
+                  prio = prio + (p.scope -> (currentPriority, newM))
+                } else if (newPriority > currentPriority) {
+                  val newM = Map(n -> v)
+                  prio = prio + (p.scope -> (newPriority, newM))
+                }
+            }
           }
         }
-        Map(nonterminal -> Seq((l, value)))
+        def add(m : Map[Nonterminal, Seq[(Int, Value)]], additions : Map[Nonterminal, Value]) : Map[Nonterminal, Seq[(Int, Value)]] = {
+          var newM = m
+          for ((n, v) <- additions) newM = newM + (n -> Seq((l, v)))
+          newM
+        }
+        var m = add(Map(), nonprio)
+        for ((_, (_, additions)) <- prio) m = add(m, additions)
+        m
       }
     }
     
