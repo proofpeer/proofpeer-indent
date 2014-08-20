@@ -4,7 +4,7 @@ name := "ProofPeer Indent"
 
 version := "0.3-SNAPSHOT"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.11.1"
 
 scalacOptions += "-feature"
 
