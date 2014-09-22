@@ -106,7 +106,7 @@ object API {
   /** Grammar annotations. */
   sealed abstract class Annotation
   
-  case class LexicalPriority(scope : Int, priority : Option[Int])
+  case class LexicalPriority(scope : Int, priority : Int)
 
   /** Grammar annotation to mark a nonterminal as lexical. */
   case class Lexical(nonterminal : Nonterminal, priority : LexicalPriority) extends Annotation
@@ -118,6 +118,8 @@ object API {
     //private lazy val bb_grammar = new proofpeer.inden
     lazy val parser : Parser = 
       proofpeer.indent.earley.Adapter.parser(this)
+    lazy val recognizer : earley.Recognizer = 
+      proofpeer.indent.earley.Recognizer.recognizer(this)      
     def ++(other : Grammar) : Grammar = {
       Grammar(rules ++ other.rules, annotations ++ other.annotations)
     }
@@ -190,10 +192,10 @@ object API {
       rule("ST", "if E then ^ST_1 else ST_2", Align("if", "ST_1")) ++
       rule("A", "") ++
       rule("B", "A A") ++
-      lexical("A", LexicalPriority(0, None)) ++
-      lexical("B", LexicalPriority(0, None)) ++
-      lexical("ST", LexicalPriority(0, None)) ++
-      lexical("E", LexicalPriority(0, None))
+      lexical("A", LexicalPriority(0, 0)) ++
+      lexical("B", LexicalPriority(0, 0)) ++
+      lexical("ST", LexicalPriority(0, 0)) ++
+      lexical("E", LexicalPriority(0, 0))
     grammar  
   }
   

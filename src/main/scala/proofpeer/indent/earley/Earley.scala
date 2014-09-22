@@ -22,9 +22,10 @@ case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : 
   *   - The application of rules can be rejected based on the values that have been computed for the 
   *     symbols on the right hand side. 
   */
-class Earley[Value, IntermediateValue](
+sealed class Earley[Value, IntermediateValue](
     grammar : BlackboxGrammar[Value, IntermediateValue], 
-    document : Document) 
+    document : Document,
+    debug : Boolean) 
 {
   
   def ruleOfItem(item : Item) : Rule = grammar.rulesOfNonterminal(item.nonterminal)(item.ruleindex)
@@ -247,8 +248,18 @@ class Earley[Value, IntermediateValue](
     val bins = initialBins(nonterminals, i)
     var largest_k = i
     var k = i
+    var maxitems = 0
+    var average = 0
     while (k <= largest_k) {
       val j = extend_items(bins, k)
+      val n = bins(k).items.size
+      if (n > maxitems) maxitems = n
+      average = average + n
+      if (debug && k % 1000 == 0) {
+        println("extended bin " + k +", maxitems = " + maxitems + ", average = " + (average / 1000))
+        maxitems = 0
+        average = 0
+      }
       if (j > largest_k) largest_k = j
       k = k + 1
     }

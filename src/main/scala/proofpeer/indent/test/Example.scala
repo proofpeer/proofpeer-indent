@@ -12,7 +12,7 @@ object Example {
 
   def lrule(l : Nonterminal, r : String) : Grammar = {
     priority = priority + 1
-    lexrule(l, r, LexicalPriority(0, Some (priority)))
+    lexrule(l, r, LexicalPriority(0, priority))
   }
 
   def g_letters_and_digits = 

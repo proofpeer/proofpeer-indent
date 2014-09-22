@@ -90,8 +90,7 @@ object GrammarChecker {
             case None => 
               lexicals = lexicals + (nonterminal -> p)
             case Some(oldP) =>
-              if (!oldP.priority.isDefined) 
-                lexicals = lexicals + (nonterminal -> p)
+              if (oldP != p) throw new RuntimeException("repeated definition of lexical: " + nonterminal)
           }
         case _ =>
       }      

@@ -5,49 +5,61 @@ import proofpeer.indent.API.Nonterminal
 import proofpeer.indent.API.LexicalPriority
 import proofpeer.indent.Derivation
 import proofpeer.indent.Derivation.ValueNonterminal
+import proofpeer.indent.API.Grammar
 import proofpeer.indent.Document
+import proofpeer.indent.UnicodeDocument
 import proofpeer.indent.Span
 import proofpeer.indent.Token
 import proofpeer.indent.EvalConstraints
 import scala.collection.immutable._
 
 
-object Adapter {
-  
+trait Recognizer {
+  def grammar : Grammar
+  def parse(document : Document, start : Nonterminal, k : Int) : Option[(Recognizer.Value, Int)] 
+  def parse(document : String, start : Nonterminal) : Option[Recognizer.Value] = {
+    val d = UnicodeDocument.fromString(document)
+    parse(d, start, 0) match {
+      case None => None
+      case Some((v, i)) => if (i == d.size) Some(v) else None
+    }
+  }
+}
+
+
+object Recognizer {
+
+  var blackboxCalls : Int = 0
+  var maxduration : Long = 0
+  var totalduration : Long = 0
+
+  var totalFinalvalues = 0
+  var ambiguousFinalvalues = 0
+
+  case class Value(span : Option[Span], unique : Boolean)
+  type IValue = Vector[Value]
+
   case class R(ruleindex : Int, rule: API.Rule[Int]) extends Rule {
     def rhsSize = rule.rhs.size
     def rhsAt(i : Int) = rule.rhs(i).indexedSymbol.symbol 
-    def ignore_layout(i : Int) = rule.rhs(i).ignore_layout
     def check_constraint(values : Vector[Value]) : Boolean = {
-      def spans(i : Int) : Option[Span] = {
-        if (i < values.size) 
-          Derivation.spanOfValue(values(i))
-        else 
-          None
-      }
+      def spans(i : Int) : Option[Span] = 
+        if (i >= values.size) None else values(i).span
       EvalConstraints.eval(rule.constraint, spans : EvalConstraints.Spans[Int]) != EvalConstraints.False
     }
-    def finalValues(i : Int, j : Int, values : Vector[Value]) : Seq[ValueNonterminal] = {
+    def finalValue(i : Int, j : Int, values : Vector[Value]) : Value = {
       var span : Option[Span] = None
+      var unique = true
       for (k <- 0 to (values.size - 1)) {
-        if (!ignore_layout(k)) {
-          (span, Derivation.spanOfValue(values(k))) match {
-            case (None, s) => span = s
-            case (s, None) => span = s
-            case (Some(u), Some(v)) => span = Some(u.addBehind(v))
-          }
+        val v = values(k)
+        unique = unique && v.unique
+        (span, v.span) match {
+          case (None, s) => span = s
+          case (s, None) => span = s
+          case (Some(u), Some(v)) => span = Some(u.addBehind(v))
         }
       }
-      var seq : Seq[ValueNonterminal] = Seq()
-      val tree = Derivation.Tree(ruleindex, values)
-      val (treeOpt, cycle_value) = Derivation.prevent_cycle(rule.lhs, i, j, tree)
-      if (treeOpt.isDefined) 
-        seq :+= ValueNonterminal(i, j, span, rule.lhs, Set(treeOpt.get))
-      if (cycle_value.isDefined) {
-        throw new RuntimeException("BOOM!!")
-        seq :+= cycle_value.get
-      }
-      seq
+      Value(span, unique)
     }
   } 
   
@@ -77,21 +89,19 @@ object Adapter {
     (outerRules, innerRules)
   }
   
-  type Value = Derivation.Value
-  type IValue = Set[Vector[Value]]
     
   class D(val size : Int, document : Document) extends Document {
     def getToken(position : Int) = document.getToken(position)
     def getText(position : Int, len : Int) = document.getText(position, len)
   }
   
-  private def iValue : IValue = Set(Vector())
+  private val iValue : IValue = Vector()
   
-  abstract class G(rules : Rules) extends BlackboxGrammar[Value, IValue] {
+  abstract class G(val rules : Rules, val debug : Boolean) extends BlackboxGrammar[Value, IValue] {
         
     def rulesOfNonterminal(nonterminal : Nonterminal) = rules(nonterminal)
     
-    def valueOfToken(token : Token) : Value = { Derivation.ValueToken(token) }
+    def valueOfToken(token : Token) : Value = Value(Some(token.span), true)
     
     def initialValue(document : Document, i : Int, nonterminal : Nonterminal, ruleindex : Int) = iValue
     
@@ -99,38 +109,34 @@ object Adapter {
       dot : Int, intermediateValue : IValue, symbolValue : Value) : Option[IValue] = 
     {
       val r = rules(nonterminal)(ruleindex)
-      val vnext = intermediateValue.flatMap { oldV =>
-        val newV = oldV :+ symbolValue
-        if (r.check_constraint(newV)) Some(newV) else None
-      }
-      if (vnext.isEmpty) None else Some(vnext)
+      val vnext = intermediateValue :+ symbolValue
+      if (r.check_constraint(vnext)) Some(vnext) else None
     }
     
     def finalValue(document : Document, i : Int, j : Int, nonterminal : Nonterminal, ruleindex : Int,
       value : IValue) : Value =
     {
       val r = rules(nonterminal)(ruleindex)
-      Derivation.join(value.flatMap(r.finalValues(i, j, _)).to[Seq]).get
+      r.finalValue(i, j, value)
     }
     
     def mergeValues(document : Document, i : Int, j : Int, nonterminal : Nonterminal, ruleindex : Int, dot : Int,
       value1 : IValue, value2 : IValue) : Option[IValue] =
     {
-      val value = value1 ++ value2
-      if (value.size == value1.size) None else Some(value)
+      None
+      /*val value = value1 ++ value2
+      if (value.size == value1.size) None else Some(value)*/
     }
     
     def joinValues(document : Document, i : Int, j : Int, nonterminal : Nonterminal, 
       value1 : Value, value2 : Value) : Value =
     {
-      val v1 = value1.asInstanceOf[ValueNonterminal]
-      val v2 = value2.asInstanceOf[ValueNonterminal]
-      Derivation.join(Seq(v1, v2)).get
+      Value(value1.span, false)
     }  
     
   }
   
-  class GInner(rules : Rules) extends G(rules) {
+  class GInner(rules : Rules) extends G(rules, false) {
 
     def hasBlackboxes = false
     
@@ -142,7 +148,7 @@ object Adapter {
   }
   
   class GOuter(outerRules : Rules, innerRules : Rules, lexicals : Map[Nonterminal, LexicalPriority]) 
-    extends G(outerRules) 
+    extends G(outerRules, true) 
   {
     val gInner = new GInner(innerRules)
     
@@ -153,6 +159,8 @@ object Adapter {
     def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = 
     {
+      val t1 = System.currentTimeMillis
+      blackboxCalls += 1
       val d = 
         new Document { 
           def size = j 
@@ -162,7 +170,7 @@ object Adapter {
       val earley = new Earley(gInner, d, false)
       val (bins, k) = earley.recognize(blackboxes, i)
       val (results, l) = earley.compute_longest_parse_values(blackboxes.contains(_), bins, i, k)
-      if (results.isEmpty) 
+      val result : Map[Nonterminal, Seq[(Int, Value)]] = if (results.isEmpty) 
         Map()
       else {
         var prio : Map[Int, (Int, Map[Nonterminal, Value])] = Map()
@@ -191,18 +199,25 @@ object Adapter {
         for ((_, (_, additions)) <- prio) m = add(m, additions)
         m
       }
+      val t2 = System.currentTimeMillis
+      val duration = t2 - t1
+      if (duration > maxduration) maxduration = duration
+      totalduration = totalduration + duration
+      result
     }
+
     
   }
   
-  def parser(apigrammar : API.Grammar) : API.Parser = {
+
+  def recognizer(apigrammar : API.Grammar) : Recognizer = {
     if (!apigrammar.wellformed) throw new RuntimeException("Cannot parse with illformed grammar.")
     val (outerRules, innerRules) = adaptRules(apigrammar)
     val g = new GOuter(outerRules, innerRules, apigrammar.info.lexicals)
-    new API.Parser {
+    new Recognizer {
       def grammar = apigrammar
       def parse(document : Document, start : Nonterminal, k : Int) : 
-        Option[(Derivation.Value, Int)] =
+        Option[(Value, Int)] =
       {
         val earley = new Earley(g, document, true)
         earley.parse(start, k)       
