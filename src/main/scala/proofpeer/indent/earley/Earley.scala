@@ -192,7 +192,7 @@ sealed class Earley[Value, IntermediateValue](
     val bin = bins(k)
     val blackboxes = collect_blackboxes(bin)
     if (blackboxes.isEmpty) return (false, k)
-    val results = grammar.callBlackboxes(document, k, document.size, blackboxes)
+    val results = grammar.callBlackboxes(document, k, blackboxes)
     if (results.isEmpty) return (false, k)
     var largest_k = k
     var changed = false    

@@ -136,7 +136,7 @@ object Adapter {
     
     def isBlackbox(nonterminal : Nonterminal) = false
     
-    def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = Map()
         
   }
@@ -150,15 +150,32 @@ object Adapter {
     
     def isBlackbox(nonterminal : Nonterminal) = lexicals.contains(nonterminal)
     
-    def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = 
     {
-      val d = 
-        new Document { 
-          def size = j 
-          def getToken(position : Int) = document.getToken(position)
-          def getText(position : Int, len : Int) = document.getText(position, len)
+      var scopedBlackboxes : Map[Int, Set[Nonterminal]] = Map()
+      for (blackbox <- blackboxes) {
+        val scope = lexicals(blackbox).scope
+        scopedBlackboxes.get(scope) match {
+          case None => 
+            scopedBlackboxes += (scope -> Set(blackbox))
+          case Some(u) =>
+            val v = u + blackbox
+            scopedBlackboxes += (scope -> v)
         }
+      }
+      var result : Map[Nonterminal, Seq[(Int, Value)]] = Map()
+      for ((_, blackboxes) <- scopedBlackboxes) {
+        result = result ++ callBlackboxes_(document, i, blackboxes)
+      }
+      result
+    }
+
+
+    def callBlackboxes_(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
+      Map[Nonterminal, Seq[(Int, Value)]] = 
+    {
+      val d = document
       val earley = new Earley(gInner, d, false)
       val (bins, k) = earley.recognize(blackboxes, i)
       val (results, l) = earley.compute_longest_parse_values(blackboxes.contains(_), bins, i, k)

@@ -142,7 +142,7 @@ object Recognizer {
     
     def isBlackbox(nonterminal : Nonterminal) = false
     
-    def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = Map()
         
   }
@@ -156,17 +156,12 @@ object Recognizer {
     
     def isBlackbox(nonterminal : Nonterminal) = lexicals.contains(nonterminal)
     
-    def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = 
     {
       val t1 = System.currentTimeMillis
       blackboxCalls += 1
-      val d = 
-        new Document { 
-          def size = j 
-          def getToken(position : Int) = document.getToken(position)
-          def getText(position : Int, len : Int) = document.getText(position, len)
-        }
+      val d = document
       val earley = new Earley(gInner, d, false)
       val (bins, k) = earley.recognize(blackboxes, i)
       val (results, l) = earley.compute_longest_parse_values(blackboxes.contains(_), bins, i, k)

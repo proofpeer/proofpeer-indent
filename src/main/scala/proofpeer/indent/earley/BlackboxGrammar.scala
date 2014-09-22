@@ -26,13 +26,12 @@ trait BlackboxGrammar[Value, IntermediateValue] {
   /** Invokes the specialised parsing routines for a given set of blackbox nonterminals.
     * @param document The document to be parsed.
     * @param i The starting position (inclusive) from which to parse.
-    * @param j The maximal end position (exclusive) of the parse.
     * @param blackboxes The set of starting nonterminals for this parse; for all of the nonterminals in the set
     *   [[isBlackbox]] will be true. 
     * @return A map from successfully parsed nonterminals to nonempty sequences of parse results. Each parse result
     *    consists of the end position (exclusive) of the parse, and the value associated with the parse.
     */
-  def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+  def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
     Map[Nonterminal, Seq[(Int, Value)]]
   
   /** The value associated with a token in the document */
