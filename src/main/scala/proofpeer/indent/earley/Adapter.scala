@@ -150,7 +150,27 @@ object Adapter {
     
     def isBlackbox(nonterminal : Nonterminal) = lexicals.contains(nonterminal)
     
-    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
+    def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) : 
+      Map[Nonterminal, Seq[(Int, Value)]] =
+    {
+      var scopedBlackboxes : Map[Int, Set[Nonterminal]] = Map()
+      for (blackbox <- blackboxes) {
+        val scope = lexicals(blackbox).scope
+        scopedBlackboxes.get(scope)  match {
+          case None =>
+            scopedBlackboxes += (scope -> Set(blackbox))
+          case Some(u) =>
+            scopedBlackboxes += (scope -> (u + blackbox))
+        }
+      }
+      var result : Map[Nonterminal, Seq[(Int, Value)]] = Map()
+      for ((_, blackboxes) <- scopedBlackboxes) {
+        result ++= callBlackboxes_(document, i, blackboxes)
+      }
+      result
+    }
+
+    def callBlackboxes_(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
       Map[Nonterminal, Seq[(Int, Value)]] = 
     {
       val d = document
@@ -160,36 +180,24 @@ object Adapter {
       if (results.isEmpty) 
         Map()
       else {
+        var currentPriority = Int.MinValue
+        var prio : Map[Nonterminal, Value] = Map()
         var nonprio : Map[Nonterminal, Value] = Map()
-        var prio : Map[Int, (Int, Map[Nonterminal, Value])] = Map()
         for ((n, v) <- results) {
           val p = lexicals(n)
           if (!p.priority.isDefined) 
-            nonprio = nonprio + (n -> v)
+            nonprio += (n -> v)
           else {
             val newPriority = p.priority.get
-            prio.get(p.scope) match {
-              case None =>
-                prio = prio + (p.scope -> (newPriority, Map(n -> v)))
-              case Some((currentPriority, m)) =>
-                if (newPriority == currentPriority) {
-                  val newM = m + (n -> v)
-                  prio = prio + (p.scope -> (currentPriority, newM))
-                } else if (newPriority > currentPriority) {
-                  val newM = Map(n -> v)
-                  prio = prio + (p.scope -> (newPriority, newM))
-                }
+            if (newPriority == currentPriority) {
+              prio += (n -> v)
+            } else if (newPriority > currentPriority) {
+              prio = Map(n -> v)
+              currentPriority = newPriority
             }
           }
         }
-        def add(m : Map[Nonterminal, Seq[(Int, Value)]], additions : Map[Nonterminal, Value]) : Map[Nonterminal, Seq[(Int, Value)]] = {
-          var newM = m
-          for ((n, v) <- additions) newM = newM + (n -> Seq((l, v)))
-          newM
-        }
-        var m = add(Map(), nonprio)
-        for ((_, (_, additions)) <- prio) m = add(m, additions)
-        m
+        (nonprio ++ prio).mapValues(v => Seq((l, v)))
       }
     }
     
