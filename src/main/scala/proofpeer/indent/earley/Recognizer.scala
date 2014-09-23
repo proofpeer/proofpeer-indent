@@ -12,42 +12,37 @@ import proofpeer.indent.EvalConstraints
 import scala.collection.immutable._
 
 
-object Adapter {
+object Recognizer {
+
+  case class Value(span : Option[Span], isUnique : Boolean)
   
+  type IValue = Set[Vector[Value]]
+ 
   case class R(ruleindex : Int, rule: API.Rule[Int]) extends Rule {
     def rhsSize = rule.rhs.size
     def rhsAt(i : Int) = rule.rhs(i).indexedSymbol.symbol 
     def ignore_layout(i : Int) = rule.rhs(i).ignore_layout
     def check_constraint(values : Vector[Value]) : Boolean = {
       def spans(i : Int) : Option[Span] = {
-        if (i < values.size) 
-          Derivation.spanOfValue(values(i))
-        else 
-          None
+        if (i < values.size) values(i).span else None
       }
       EvalConstraints.eval(rule.constraint, spans : EvalConstraints.Spans[Int]) != EvalConstraints.False
     }
-    def finalValues(i : Int, j : Int, values : Vector[Value]) : Seq[ValueNonterminal] = {
+    def finalValue(i : Int, j : Int, values : Vector[Value]) : Value = {
       var span : Option[Span] = None
+      var isUnique = true
       for (k <- 0 to (values.size - 1)) {
+        val v = values(k)
         if (!ignore_layout(k)) {
-          (span, Derivation.spanOfValue(values(k))) match {
+          (span, v.span) match {
             case (None, s) => span = s
             case (s, None) => span = s
             case (Some(u), Some(v)) => span = Some(u.addBehind(v))
           }
         }
+        isUnique &&= v.isUnique
       }
-      var seq : Seq[ValueNonterminal] = Seq()
-      val tree = Derivation.Tree(ruleindex, values)
-      val (treeOpt, cycle_value) = Derivation.prevent_cycle(rule.lhs, i, j, tree)
-      if (treeOpt.isDefined) 
-        seq :+= ValueNonterminal(i, j, span, rule.lhs, Set(treeOpt.get))
-      if (cycle_value.isDefined) {
-        throw new RuntimeException("BOOM!!")
-        seq :+= cycle_value.get
-      }
-      seq
+      Value(span, isUnique)
     }
   } 
   
@@ -76,10 +71,7 @@ object Adapter {
     }
     (outerRules, innerRules)
   }
-  
-  type Value = Derivation.Value
-  type IValue = Set[Vector[Value]]
-    
+      
   class D(val size : Int, document : Document) extends Document {
     def getToken(position : Int) = document.getToken(position)
     def getText(position : Int, len : Int) = document.getText(position, len)
@@ -91,7 +83,7 @@ object Adapter {
         
     def rulesOfNonterminal(nonterminal : Nonterminal) = rules(nonterminal)
     
-    def valueOfToken(token : Token) : Value = { Derivation.ValueToken(token) }
+    def valueOfToken(token : Token) : Value = { Value(Some(token.span), true) }
     
     def initialValue(document : Document, i : Int, nonterminal : Nonterminal, ruleindex : Int) = iValue
     
@@ -110,7 +102,11 @@ object Adapter {
       value : IValue) : Value =
     {
       val r = rules(nonterminal)(ruleindex)
-      Derivation.join(value.flatMap(r.finalValues(i, j, _)).to[Seq]).get
+      val v = r.finalValue(i, j, value.head)
+      if (value.size == 1)
+        v
+      else
+        Value(v.span, false)
     }
     
     def mergeValues(document : Document, i : Int, j : Int, nonterminal : Nonterminal, ruleindex : Int, dot : Int,
@@ -123,9 +119,7 @@ object Adapter {
     def joinValues(document : Document, i : Int, j : Int, nonterminal : Nonterminal, 
       value1 : Value, value2 : Value) : Value =
     {
-      val v1 = value1.asInstanceOf[ValueNonterminal]
-      val v2 = value2.asInstanceOf[ValueNonterminal]
-      Derivation.join(Seq(v1, v2)).get
+      Value(value1.span, false)
     }  
     
   }
@@ -203,14 +197,14 @@ object Adapter {
     
   }
   
-  def parser(apigrammar : API.Grammar) : API.Parser = {
+  def parser(apigrammar : API.Grammar) : API.Recognizer = {
     if (!apigrammar.wellformed) throw new RuntimeException("Cannot parse with illformed grammar.")
     val (outerRules, innerRules) = adaptRules(apigrammar)
     val g = new GOuter(outerRules, innerRules, apigrammar.info.lexicals)
-    new API.Parser {
+    new API.Recognizer {
       def grammar = apigrammar
       def parse(document : Document, start : Nonterminal, k : Int) : 
-        Option[(Derivation.Value, Int)] =
+        Option[(Value, Int)] =
       {
         val earley = new Earley(g, document, true)
         earley.parse(start, k)       

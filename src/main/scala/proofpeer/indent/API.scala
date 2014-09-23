@@ -118,6 +118,8 @@ object API {
     //private lazy val bb_grammar = new proofpeer.inden
     lazy val parser : Parser = 
       proofpeer.indent.earley.Adapter.parser(this)
+    lazy val recognizer : Recognizer = 
+      proofpeer.indent.earley.Recognizer.parser(this)      
     def ++(other : Grammar) : Grammar = {
       Grammar(rules ++ other.rules, annotations ++ other.annotations)
     }
@@ -134,7 +136,20 @@ object API {
       }
     }
   }
-  
+
+  trait Recognizer {
+    def grammar : Grammar
+    def parse(document : Document, start : Nonterminal, k : Int) : Option[(proofpeer.indent.earley.Recognizer.Value, Int)] 
+    def parse(document : String, start : Nonterminal) : Option[proofpeer.indent.earley.Recognizer.Value] = {
+      val d = UnicodeDocument.fromString(document)
+      parse(d, start, 0) match {
+        case None => None
+        case Some((v, i)) => if (i == d.size) Some(v) else None
+      }
+    }
+  }
+
+
   /** Compact specification of grammars.
     * Uses [[APIConversions.string2rhs]] to process the `rhs` parameter.
     */

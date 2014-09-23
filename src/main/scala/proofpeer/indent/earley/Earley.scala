@@ -12,6 +12,12 @@ case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : 
   //override def hashCode : Int = List[Any](nonterminal, ruleindex, dot, origin).hashCode
 }
 
+object Measurements {
+
+
+
+}
+
 /** General-purpose Earley parser. Apart from using Terminal, Nonterminal, TerminalLike
   * and Symbol, it is entirely independent of [[proofpeer.indent.API]].
   * It can be used in any situation that calls for an Earley parser / recognizer. 
@@ -24,7 +30,8 @@ case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : 
   */
 class Earley[Value, IntermediateValue](
     grammar : BlackboxGrammar[Value, IntermediateValue], 
-    document : Document) 
+    document : Document,
+    outer : Boolean) 
 {
   
   def ruleOfItem(item : Item) : Rule = grammar.rulesOfNonterminal(item.nonterminal)(item.ruleindex)
