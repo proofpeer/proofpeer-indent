@@ -32,7 +32,7 @@ trait BlackboxGrammar[Value, IntermediateValue] {
     * @return A map from successfully parsed nonterminals to nonempty sequences of parse results. Each parse result
     *    consists of the end position (exclusive) of the parse, and the value associated with the parse.
     */
-  def callBlackboxes(document : Document, i : Int, j : Int, blackboxes : Set[Nonterminal]) :
+  def callBlackboxes(document : Document, i : Int, blackboxes : Set[Nonterminal]) :
     Map[Nonterminal, Seq[(Int, Value)]]
   
   /** The value associated with a token in the document */
