@@ -8,8 +8,7 @@ object RegularExpr {
 
   case object EMPTY extends RegularExpr
 
-  // yes and no must be disjunct, and yes must be non-empty
-  case class CHAR(yes : Set[Int], no : Set[Int]) extends RegularExpr
+  case class CHAR(chars : Set[Int], positive : Boolean) extends RegularExpr
 
   case class ALT(left : RegularExpr, right : RegularExpr) extends RegularExpr
   
@@ -21,9 +20,9 @@ object RegularExpr {
   
   case class REPEAT1(expr : RegularExpr) extends RegularExpr
 
-  val SPACE = CHAR(Set(32), Set())
+  val SPACE = CHAR(Set(32), true)
   
-  val NEWLINE = CHAR(Set(10), Set())
+  val NEWLINE = CHAR(Set(10), true)
   
   val WHITESPACE = REPEAT1(ALT(SPACE, NEWLINE))
 
@@ -104,15 +103,58 @@ object NFA {
     }
   }
 
+  /*def overlap(i1 : InputSymbols, i2 : InputSymbols) : Boolean = {
+    (i1, i2) match {
+      case (None, None) => true
+      case (Some(CHAR(yes1, no1)), Some(CHAR(yes2, no2))) =>
+
+      case _ => false
+    }
+  } */
+
 }
 
-import NFA._
-
-class NFA(val startState : State, val maxState : State, val finalStates : FinalStates, 
-  val transitions : Transitions) 
+case class NFA(startState : NFA.State, maxState : NFA.State, finalStates : NFA.FinalStates, 
+  val transitions : NFA.Transitions) 
 {
+  import NFA._
+
+/*  def move(state : State, input : InputSymbols) : Set[State] = {
+    transitions.get(state) match {
+      case None => Set()
+      case Some(transitions) =>
+        var dest : Set[State] = Set()
+        for ((i, states) <- transitions) {
+          if 
+        }
+
+    }
+
+  }
+  def epsClosure(states : Set[State]) : Set[State] = {
+    var closure = states
+    var size = 0
+    do {
+      size = closure.size
+      for (state <- states) {
+        transitions.get(state) match {
+          case None => 
+          case Some(transitions) =>
+
+        }
+      }
+    } while (size != closure.size)
+    closure
+  }*/
+}
+
+object DFA {
+
+
+
 
 }
+
 
 
 
