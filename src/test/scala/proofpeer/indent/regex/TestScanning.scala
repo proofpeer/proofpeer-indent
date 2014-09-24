@@ -13,6 +13,9 @@ object TestScanning extends Properties("Scanning") {
   val letters = REPEAT1(letter)
   val alphanumeric = REPEAT1(ALT(digit, letter))
   val alphanumerics = REPEAT1(ALT(digits, letters))
+  val apostroph = CHAR(Range(39))
+  val not_apostroph = CHAR(-Range(39))
+  val apostroph_string = SEQ(apostroph, SEQ(REPEAT(not_apostroph), apostroph))
 
   def scan(regex : RegularExpr, s : String) : Boolean = {
     val nfa = NFA.fromRegularExpr(0, regex, 0)
@@ -59,6 +62,11 @@ object TestScanning extends Properties("Scanning") {
   property("alphanumerics 3") = scan(alphanumerics, "abc")
   property("alphanumerics 4") = scan(alphanumerics, "a12b3cccCCc4A")
   property("alphanumerics 4") = !scan(alphanumerics, "a12b3c-ccCCc4A")  
+  property("string 1") = scan(apostroph_string, "''")
+  property("string 2") = scan(apostroph_string, "'hello'")
+  property("string 3") = !scan(apostroph_string, "'hello")
+  property("string 4") = !scan(apostroph_string, "'hello't")
+
 
 
 }
