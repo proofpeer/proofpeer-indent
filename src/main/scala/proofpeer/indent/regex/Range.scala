@@ -11,7 +11,7 @@ package proofpeer.indent.regex
   *  - `(- Range(7)) * (- Range(13))` is the set of all (32-bit) integers except 7 and 13
   *  - `- (Range(7) + Range(13))` also is the set of all (32-bit) integers except 7 and 13
   */
-sealed class Range private (val intervals : Vector[(Int, Int)]) {
+sealed class Range private (val intervals : Vector[Range.Interval]) {
       
   def isEmpty : Boolean = intervals.isEmpty
 
@@ -59,7 +59,7 @@ sealed class Range private (val intervals : Vector[(Int, Int)]) {
 
   /** The complement of this set. */
   def unary_- : Range = {
-    var ivs : Vector[(Int, Int)] = Vector()
+    var ivs : Vector[Range.Interval] = Vector()
     var l = Int.MinValue
     for ((left, right) <- intervals) {
       val r = left - 1
@@ -72,7 +72,7 @@ sealed class Range private (val intervals : Vector[(Int, Int)]) {
 
   /** Set intersection of this range with the argument range. */
   def *(range : Range) : Range = {
-    var ivs : Vector[(Int, Int)] = Vector()
+    var ivs : Vector[Range.Interval] = Vector()
     val ivs1 = intervals
     val ivs2 = range.intervals
     var (size1, index1) = (ivs1.size, 0)
@@ -114,6 +114,8 @@ sealed class Range private (val intervals : Vector[(Int, Int)]) {
 }
 
 object Range {
+
+  type Interval = (Int, Int)
   
   /** The set of all (32-bit) integers. */
   val universal : Range = Range(Int.MinValue, Int.MaxValue)
@@ -122,8 +124,8 @@ object Range {
   val empty : Range = new Range(Vector())
 
   // helper function for +
-  private def addInterval(intervals : Vector[(Int, Int)], index : Int, left : Int, right : Int) : 
-    (Vector[(Int, Int)], Int)  = 
+  private def addInterval(intervals : Vector[Interval], index : Int, left : Int, right : Int) : 
+    (Vector[Interval], Int)  = 
   {
     var i = index
     val size = intervals.size
