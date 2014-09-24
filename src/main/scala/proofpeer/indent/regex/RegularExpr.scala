@@ -35,10 +35,6 @@ object RegularExpr {
   /** any nonempty sequence of spaces and newlines */
   val WHITESPACE = REPEAT1(ALT(SPACE, NEWLINE))
 
-  case class Rule(priority : Option[Int], expr : RegularExpr)
-
-  type Grammar = Map[Int, RegularExpr]
-
 }
 
 import RegularExpr._
