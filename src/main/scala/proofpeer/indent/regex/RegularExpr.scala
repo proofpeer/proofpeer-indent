@@ -84,7 +84,7 @@ object NFA {
         val endState = startState + 1
         val finalStates : FinalStates = Map(endState -> Set(tokenId))
         val transitions : Transitions = Map(startState -> Map(Some(c) -> Set(endState)))
-        new NFA(startState, startState, finalStates, transitions)
+        new NFA(startState, endState, finalStates, transitions)
       case ALT(left, right) =>
         val leftNFA = fromRegularExpr(tokenId, left, startState + 1)
         val rightNFA = fromRegularExpr(tokenId, right, leftNFA.maxState + 1)
@@ -103,8 +103,9 @@ object NFA {
           joinTransitions(firstNFA.transitions, transitions) ++ secondNFA.transitions)
       case REPEAT(expr) =>
         val nfa = fromRegularExpr(tokenId, expr, startState + 1)
-        val transitions : Transitions = nfa.finalStates.mapValues(c => 
-          Map(None -> Set(startState)))
+        var transitions : Transitions = nfa.finalStates.mapValues(c => 
+          Map(None -> Set(startState))) 
+        transitions = transitions + (startState -> Map(None -> Set(nfa.startState)))
         new NFA(startState, nfa.maxState, Map(startState -> Set(tokenId)),
           joinTransitions(nfa.transitions, transitions))
       case REPEAT1(expr) => fromRegularExpr(tokenId, SEQ(expr, REPEAT(expr)), startState)
@@ -135,10 +136,33 @@ case class NFA(startState : NFA.State, maxState : NFA.State, finalStates : NFA.F
     var size = 0
     do {
       size = closure.size
-      for (state <- states) closure ++= epsMove(state)
+      for (state <- closure) closure ++= epsMove(state)
     } while (size != closure.size)
     closure
   }
+
+  def display() {
+    println("NFA")
+    println("  number of states: " + (maxState - startState + 1))
+    println("  number of states with transitions: " + transitions.size)
+    println("  number of final states: " + finalStates.size)
+    println("  ----")
+    for (state <- startState to maxState) {
+      val f = finalStates.get(state) match {
+        case None => ""
+        case Some(ids) => " (final state: " + ids+")"
+      }
+      println("  state " + state + f + ": ")
+      transitions.get(state) match {
+        case None => println("    no transitions")
+        case Some(transitions) =>
+          println("    " + transitions.size + " transitions")
+          for ((r, s) <- transitions) {
+            println("    transition on " + r + " to " + s)
+          } 
+      }
+    }
+  }  
 
 }
 
@@ -231,8 +255,47 @@ class NormalizedTransitions(nfa : NFA) {
 
 }
 
+/** startState >= 0 */
 case class DFA(startState : DFA.State, maxState : DFA.State, finalStates : DFA.FinalStates,
   transitions : DFA.Transitions)
+{
+  import DFA._
+
+  /** @return the new state, or -1 if no such state exists */
+  def move(state : State, character : Int) : State = {
+    transitions.get(state) match {
+      case None => -1
+      case Some(transitions) =>
+        for ((r, s) <- transitions) 
+          if (r.contains(character)) return s
+        return -1
+    }
+  }
+
+  def display() {
+    println("DFA")
+    println("  number of states: " + (maxState - startState + 1))
+    println("  number of states with transitions: " + transitions.size)
+    println("  number of final states: " + finalStates.size)
+    println("  ----")
+    for (state <- startState to maxState) {
+      val f = finalStates.get(state) match {
+        case None => ""
+        case Some(ids) => " (final state: " + ids+")"
+      }
+      println("  state " + state + f + ": ")
+      transitions.get(state) match {
+        case None => println("    no transitions")
+        case Some(transitions) =>
+          println("    " + transitions.size + " transitions")
+          for ((r, s) <- transitions) {
+            println("    transition on " + r + " to " + s)
+          } 
+      }
+    }
+  }
+
+}
 
 object DFA {
 
@@ -265,11 +328,68 @@ object DFA {
     var dfaFinalstates : FinalStates = Map()
     for ((states, node) <- nodes) {
       var tokenIds : Set[TokenId] = Set()
-      for (s <- states) tokenIds ++= nfa.finalStates(s)
+      for (s <- states) {
+        nfa.finalStates.get(s) match {
+          case Some(ids) => tokenIds ++= ids
+          case _ =>
+        }
+      }
       if (!tokenIds.isEmpty) dfaFinalstates += (node -> tokenIds)
     }
     DFA(nodes(start), nodes.size - 1, dfaFinalstates, dfaTransitions)
   }
 
+  import proofpeer.indent._
+
+  /** @return (l, ids) where l is the length of the recognized token and ids is the set of 
+    * ids of recognized tokens. 
+    */
+  def run(dfa : DFA, characterStream : CharacterStream) : (Int, Set[TokenId]) = {
+    var state = dfa.startState
+    var recognizedLength = -1
+    var recognizedTokens : Set[TokenId] = null
+    var len = 0
+    while (state >= 0) {
+      dfa.finalStates.get(state) match {
+        case Some(ids) => 
+          recognizedLength = len
+          recognizedTokens = ids
+        case _ =>
+      }
+      val character = characterStream.nextCharacter
+      len += 1
+      if (character < 0) return (recognizedLength, recognizedTokens)
+      state = dfa.move(state, character)
+    }
+    (recognizedLength, recognizedTokens)
+  }
+
 }
+
+trait CharacterStream {
+
+  /** @return -1 if the end of the document has been reached, otherwise the character code */
+  def nextCharacter : Int 
+
+}
+
+object CharacterStream {
+
+  private class StringCharacterStream(val s : String, var index : Int) extends CharacterStream
+  {
+    def nextCharacter : Int = {
+      import proofpeer.scala.lang._
+      if (index >= s.size) return -1
+      val c = codePointAt(s, index)
+      index += charCount(c)
+      c
+    }
+  }
+
+  def fromString(s : String) : CharacterStream = {
+    new StringCharacterStream(s, 0)
+  }
+
+}
+
 

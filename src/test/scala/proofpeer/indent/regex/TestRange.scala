@@ -7,8 +7,10 @@ object TestRange extends Properties("Range") {
  
   property("ex 1") = Range.universal == - Range.empty
   property("ex 2") = Range.empty == - Range.universal
-  property("min complement") = - Range(Int.MinValue) == Range(Int.MinValue + 1, Int.MaxValue)
-  property("max complement") = - Range(Int.MaxValue) == Range(Int.MinValue, Int.MaxValue - 1)
+  property("min complement 1") = - Range(Int.MinValue) == Range(Int.MinValue + 1, Int.MaxValue)
+  property("min complement 2") = Range(Int.MinValue) == - Range(Int.MinValue + 1, Int.MaxValue)
+  property("max complement 1") = - Range(Int.MaxValue) == Range(Int.MinValue, Int.MaxValue - 1)
+  property("max complement 2") = Range(Int.MaxValue) == - Range(Int.MinValue, Int.MaxValue - 1)
   property("ex 3") = - (- Range(7)) == Range(7)
   property("ex 4") = forAll { i : Int => - (- Range (i)) == Range(i) }
   property("ex 5") = forAll { (i : Int, j : Int) => i <= j ==> (- (- Range (i, j)) == Range(i, j)) }
