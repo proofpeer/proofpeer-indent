@@ -1,60 +1,9 @@
 package proofpeer.indent.regex
 
-/** The type of regular expressions. */
-sealed trait RegularExpr
-
-object RegularExpr {
-
-  /** ε */
-  case object EMPTY extends RegularExpr
-
-  /** All characters with unicode values in the given range. */
-  case class CHAR(range : Range) extends RegularExpr
-
-  /** left or right */
-  case class ALT(left : RegularExpr, right : RegularExpr) extends RegularExpr
-  
-  /** left followed by right */
-  case class SEQ(first : RegularExpr, second : RegularExpr) extends RegularExpr
-  
-  /** expr? */
-  case class OPT(expr : RegularExpr) extends RegularExpr
-  
-  /** expr* */
-  case class REPEAT(expr : RegularExpr) extends RegularExpr
-  
-  /** expr+ */
-  case class REPEAT1(expr : RegularExpr) extends RegularExpr
-
-  /** the space character */
-  val SPACE = CHAR(Range(32))
-  
-  /** the newline character */
-  val NEWLINE = CHAR(Range(10))
-  
-  /** any nonempty sequence of spaces and newlines */
-  val WHITESPACE = REPEAT1(ALT(SPACE, NEWLINE))
-
-}
+/** Conversion from regular expressions to NFAs, and from NFAs to DFAs. */
 
 import RegularExpr._
-
-object Tools {
-
-  def merge[K, V](m1 : Map[K, V], m2 : Map[K, V], join : (V, V) => V) : Map[K, V] = {
-    var m = m1
-    for ((k, v) <- m2) {
-      m1.get(k) match {
-        case None => 
-          m = m + (k -> v)
-        case Some(u) =>
-          m = m + (k -> join(u, v))
-      }
-    }
-    m
-  }
-
-}
+import proofpeer.general.MapUtils
 
 object NFA {
 
@@ -65,9 +14,9 @@ object NFA {
   type Transitions = Map[State, Map[InputSymbols, Set[State]]]
 
   def joinTransitions(trans1 : Transitions, trans2 : Transitions) : Transitions = 
-    Tools.merge(trans1, trans2, 
+    MapUtils.merge(trans1, trans2, 
       (t1 : Map[InputSymbols, Set[State]], t2 : Map[InputSymbols, Set[State]]) 
-        => Tools.merge(t1, t2, (s1 : Set[State], s2 : Set[State]) => s1 ++ s2))
+        => MapUtils.merge(t1, t2, (s1 : Set[State], s2 : Set[State]) => s1 ++ s2))
 
   // all states in the created automaton must be >= startState
   def fromRegularExpr(tokenId : TokenId, expr : RegularExpr, startState : Int) : NFA = {
@@ -362,30 +311,6 @@ object DFA {
 
 }
 
-trait CharacterStream {
 
-  /** @return -1 if the end of the document has been reached, otherwise the character code */
-  def nextCharacter : Int 
-
-}
-
-object CharacterStream {
-
-  private class StringCharacterStream(val s : String, var index : Int) extends CharacterStream
-  {
-    def nextCharacter : Int = {
-      import proofpeer.general.StringUtils._
-      if (index >= s.size) return -1
-      val c = codePointAt(s, index)
-      index += charCount(c)
-      c
-    }
-  }
-
-  def fromString(s : String) : CharacterStream = {
-    new StringCharacterStream(s, 0)
-  }
-
-}
 
 
