@@ -24,7 +24,7 @@ sealed class Range private (val intervals : Vector[Range.Interval]) {
   } 
   
   private def i2s(i:(Int, Int)) : String = 
-    if (i._1 == i._2) ""+i._1 else ""+i._1+"-"+i._2
+    if (i._1 == i._2) ""+i._1 else "("+i._1+", "+i._2+")"
   
   override def toString() : String = {
     var sep = "["
@@ -33,7 +33,7 @@ sealed class Range private (val intervals : Vector[Range.Interval]) {
       buf = buf + sep + i2s(i)
       sep = ", "
     }
-    buf
+    buf + "]"
   }
   
   override def hashCode() : Int = intervals.hashCode
@@ -62,8 +62,7 @@ sealed class Range private (val intervals : Vector[Range.Interval]) {
     var ivs : Vector[Range.Interval] = Vector()
     var l = Int.MinValue
     for ((left, right) <- intervals) {
-      val r = left - 1
-      if (l <= r) ivs :+= (l, r)
+      if (l < left) ivs :+= (l, left-1)
       l = right + 1 
     }
     if (l != Int.MinValue || intervals.isEmpty) ivs :+= (l, Int.MaxValue)
@@ -131,14 +130,14 @@ object Range {
     val size = intervals.size
     while (i < size) {
       val (l, r) = intervals(i)
-      if (left > r + 1) i += 1
+      if (r < Int.MaxValue && left > r + 1) i += 1
       else {
         val newLeft = if (left < l) left else l
         var j = i
         while (j < size && right > intervals(j)._2) j += 1
-        if (j >= size) 
+        if (j >= size || right == Int.MaxValue) 
           return (intervals.take(i) :+ (newLeft, right), i + 1)
-        else if (right >= intervals(j)._1 - 1) 
+        else if (right + 1 >= intervals(j)._1) 
           return ((intervals.take(i) :+ (newLeft, intervals(j)._2)) ++ intervals.drop(j + 1), i)
         else 
           return ((intervals.take(i) :+ (newLeft, right)) ++ intervals.drop(j), i + 1)
