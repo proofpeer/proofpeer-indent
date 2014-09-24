@@ -374,7 +374,7 @@ object CharacterStream {
   private class StringCharacterStream(val s : String, var index : Int) extends CharacterStream
   {
     def nextCharacter : Int = {
-      import proofpeer.scala.lang._
+      import proofpeer.general.StringUtils._
       if (index >= s.size) return -1
       val c = codePointAt(s, index)
       index += charCount(c)
