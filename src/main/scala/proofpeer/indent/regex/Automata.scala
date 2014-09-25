@@ -60,6 +60,24 @@ object NFA {
     }
   }
 
+  def fromRegularExprs(exprs : Seq[(TokenId, RegularExpr)]) : NFA = {
+    var startState = 0
+    var maxState = 0
+    var startStates : Set[State] = Set()
+    var finalStates : FinalStates = Map()
+    var transitions : Transitions = Map()
+    for ((tokenId, expr) <- exprs) {
+      val nfa = fromRegularExpr(tokenId, expr, startState)
+      startStates += startState
+      finalStates ++= nfa.finalStates
+      transitions ++= nfa.transitions
+      maxState = nfa.maxState
+      startState = maxState + 1
+    }
+    NFA(0, maxState, finalStates, transitions + (0 -> Map(None -> startStates)))
+  }
+
+
 }
 
 case class NFA(startState : NFA.State, maxState : NFA.State, finalStates : NFA.FinalStates, 

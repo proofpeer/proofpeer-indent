@@ -35,7 +35,7 @@ class Grammar(val rules : Vector[Rule])
       Grammar(rules ++ other.rules)
     }
 
-    def scanrules : Map[String, ScanRule] = {
+    private def computeScanRules : Map[String, ScanRule] = {
       var srules : Map[String, ScanRule] = Map()
       for (r <- rules) {
         r match {
@@ -49,14 +49,26 @@ class Grammar(val rules : Vector[Rule])
       srules
     }
 
-/*    def parserules : Map[String, Vector[ParseRule]] = {
-
+    def computeParseRules : (Map[String, Vector[ParseRule]], Set[String]) = {
+      var prules : Map[String, Vector[ParseRule]] = Map()
+      var symbols : Set[String] = Set()
+      for (r <- rules) {
+        r match {
+          case r : ParseRule =>
+            for (indexedSymbol <- r.rhs) symbols += indexedSymbol.symbol
+            prules.get(r.symbol) match {
+              case None => prules += (r.symbol -> Vector(r))
+              case Some(rules) => prules += (r.symbol -> (rules :+ r))
+            }
+          case _ =>
+        }
+      }
+      (prules, symbols)
     }
 
-    def check() {
-      scanrules.keys
+    lazy val scanrules = computeScanRules
 
-    }*/
+    lazy val (parserules, usedSymbols) = computeParseRules
 }
 
 object Grammar {

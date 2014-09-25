@@ -12,6 +12,8 @@ object Syntax {
   private var scanrules : Map[String, ScanRule] = Map()
   private var parserules : Vector[ParseRule] = Vector()
 
+  def grammar : Grammar = Grammar(parserules ++ scanrules.map(p => p._2))
+
   def add(name : String, r : RegularExpr, prio : Option[Int] = None) {
     val scanrule = ScanRule(name, 0, prio, r)
     if (scanrules.get(name).isDefined) throw new RuntimeException("literal already defined: " + name)
@@ -590,10 +592,3 @@ object Syntax {
 
 }
 
-object Test {
-
-  def main(args : Array[String]) {
-        
-  }
-
-}
