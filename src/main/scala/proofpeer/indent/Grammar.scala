@@ -34,9 +34,58 @@ class Grammar(val rules : Vector[Rule])
     def ++(other : Grammar) : Grammar = {
       Grammar(rules ++ other.rules)
     }
+
+    def scanrules : Map[String, ScanRule] = {
+      var srules : Map[String, ScanRule] = Map()
+      for (r <- rules) {
+        r match {
+          case r : ScanRule =>
+            if (srules.get(r.symbol).isDefined) 
+              throw new RuntimeException("duplicate scanrule for " + r.symbol)
+            srules += (r.symbol -> r)
+          case _ =>
+        }
+      }
+      srules
+    }
+
+/*    def parserules : Map[String, Vector[ParseRule]] = {
+
+    }
+
+    def check() {
+      scanrules.keys
+
+    }*/
 }
 
 object Grammar {
   def apply(rules : Vector[Rule]) : Grammar = new Grammar(rules)
+}
+
+object GrammarConversions {
+
+  import scala.language.implicitConversions
+  import proofpeer.general.StringUtils._
+
+  implicit def name2IndexedSymbol(name: String): IndexedSymbol = {
+    val u = name.indexOf("_")
+    if (u >= 0) {
+      val left = name.substring(0, u)
+      val right = name.substring(u + 1)
+      if (right == "" || !right.forall(isASCIIDigit(_)))
+        throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
+      IndexedSymbol(left, Some(right))
+    } else 
+      IndexedSymbol(name, None)
+  }
+
+  def string2rhs(s : String) : Vector[IndexedSymbol] = {
+    if (s.trim().isEmpty())
+      Vector()
+    else
+      split_nonempty(s, " ").map(name2IndexedSymbol(_)).toVector
+  }  
+
 }
 

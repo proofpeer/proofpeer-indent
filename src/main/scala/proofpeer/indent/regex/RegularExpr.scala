@@ -5,7 +5,10 @@ sealed trait RegularExpr
 
 object RegularExpr {
 
-  /** ε */
+  /** This matches nothing. */
+  case object NOTHING extends RegularExpr
+
+  /** ε, matches the empty string */
   case object EMPTY extends RegularExpr
 
   /** All characters with unicode values in the given range. */
@@ -34,6 +37,37 @@ object RegularExpr {
   
   /** any nonempty sequence of spaces and newlines */
   val WHITESPACE = REPEAT1(ALT(SPACE, NEWLINE))
+
+}
+
+object Utils {
+
+  import RegularExpr._
+
+  def chars(c1 : Char, c2 : Char) : RegularExpr = CHAR(Range(c1, c2))
+
+  def chars(c1 : Int, c2 : Int) : RegularExpr = CHAR(Range(c1, c2))
+
+  def char(c : Char) : RegularExpr = chars(c, c)
+
+  def char(c : Int) : RegularExpr = CHAR(Range(c))
+
+  def string(s : String) : RegularExpr = {
+    val codes = proofpeer.general.StringUtils.codePoints(s)
+    seq(codes.map(c => CHAR(Range(c))) : _*)
+  }
+
+  def seq(rs : RegularExpr*) : RegularExpr = {
+    var range : RegularExpr = EMPTY
+    for (r <- rs)range = SEQ(range, r)
+    range
+  }
+
+  def alt(rs : RegularExpr*) : RegularExpr = {
+    var range : RegularExpr = NOTHING
+    for (r <- rs) range = ALT(range, r)
+    range
+  }
 
 }
 

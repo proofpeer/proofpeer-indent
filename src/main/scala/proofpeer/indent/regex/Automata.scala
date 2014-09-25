@@ -21,6 +21,8 @@ object NFA {
   // all states in the created automaton must be >= startState
   def fromRegularExpr(tokenId : TokenId, expr : RegularExpr, startState : Int) : NFA = {
     expr match {
+      case NOTHING =>
+        new NFA(startState, startState, Map(), Map())
       case EMPTY =>
         val finalStates : FinalStates = Map(startState -> Set(tokenId))
         val transitions : Transitions = Map(startState -> Map(None -> Set(startState)))
