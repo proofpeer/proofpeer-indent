@@ -3,10 +3,10 @@ package proofpeer.indent
 package object layout {
 
   sealed abstract class Constraint
-  case class And(constraints : List[Constraint]) extends Constraint
-  case class Or(constraints : List[Constraint]) extends Constraint
-  case class Not(constraint : Constraint) extends Constraint
-  case class Implies(assumption : Constraint, conclusion : Constraint) 
+  final case class And(constraints : List[Constraint]) extends Constraint
+  final case class Or(constraints : List[Constraint]) extends Constraint
+  final case class Not(constraint : Constraint) extends Constraint
+  final case class Implies(assumption : Constraint, conclusion : Constraint) 
     extends Constraint
 
   def and(constraints : Constraint*) : Constraint  = 
@@ -31,44 +31,45 @@ package object layout {
   type LayoutEntity = (LayoutQualifier, IndexedSymbol)
 
   /** left < right + delta */
-  case class Less(left : LayoutEntity, right : LayoutEntity, delta : Int) 
+  final case class Less(left : LayoutEntity, right : LayoutEntity, delta : Int) 
     extends Constraint
 
   /** left <= right + delta */
-  case class Leq(left : LayoutEntity, right : LayoutEntity, delta : Int) 
+  final case class Leq(left : LayoutEntity, right : LayoutEntity, delta : Int) 
     extends Constraint
 
   /** left = right + delta */
-  case class Eq(left : LayoutEntity, right : LayoutEntity, delta : Int) 
+  final case class Eq(left : LayoutEntity, right : LayoutEntity, delta : Int) 
     extends Constraint
 
   /** Denotes integer typed properties of the geometry of s */
   sealed abstract class LayoutQualifier {
     def apply(indexedSymbol : IndexedSymbol) : LayoutEntity = (this, indexedSymbol)
+    def get(span : Span) : Int 
   }
 
   /** Row of the first line of s. */
-  case object FirstRow extends LayoutQualifier
+  final case object FirstRow extends LayoutQualifier { def get(s : Span) = s.firstRow }
 
   /** Row of the last line of s. */
-  case object LastRow extends LayoutQualifier
+  final case object LastRow extends LayoutQualifier { def get(s : Span) = s.lastRow }
 
   /** Column of first non-whitespace character in the first line of s. */ 
-  case object LeftMostInFirst extends LayoutQualifier
+  final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = s.leftMostInFirst }
 
   /** Minimum column in which a character of s appears. */
-  case object LeftMost extends LayoutQualifier
+  final case object LeftMost extends LayoutQualifier { def get(s : Span) = s.leftMost }
 
   /** Minimum column in which a character of s appears which is also in the first line of s. */
-  case object LeftMostFirst extends LayoutQualifier
+  final case object LeftMostFirst extends LayoutQualifier { def get(s : Span) = s.leftMostFirst }
 
   /** Minimum column in which a character of s appears which is not in the first line of s.
     * This value is only defined if s consists of at least two rows. 
     */
-  case object LeftMostRest extends LayoutQualifier
+  final case object LeftMostRest extends LayoutQualifier { def get(s : Span) = s.leftMostRest }
 
   /** Maximum column in which a character of s appears which is also in the last line of s. */
-  case object RightMostLast extends LayoutQualifier
+  final case object RightMostLast extends LayoutQualifier { def get(s : Span) = s.rightMostLast }
 
   /** B starts in the same line that A ends in. */
   def SameLine(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
