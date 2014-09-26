@@ -47,7 +47,8 @@ object Test {
     scan("hello\\u")
     scan("hello\\uFFFF")
     var ea = new earley.EarleyAutomaton(grammar)
-    println("number of core items: " + ea.states.size)
+    println("number of core items: " + ea.coreItems.size)
+    println("nullable nonterminals: " + grammar.nullableNonterminals)
   }
 
 }

@@ -160,7 +160,30 @@ class Grammar(val rules : Vector[Rule])
 
     lazy val (parserules, usedSymbols) = computeParseRules
 
+    lazy val terminals : Set[String] = scanrules.keys.toSet.intersect(usedSymbols)
+
+    lazy val nonterminals : Set[String] = parserules.keys.toSet
+
     lazy val errors = check()
+
+    lazy val nullableNonterminals : Set[String] = {
+      var nullable : Set[String] = Set()
+      var changed : Boolean = false
+      do {
+        changed = false
+        for ((nonterminal, rules) <- parserules) {
+          if (!nullable.contains(nonterminal)) {
+            for (rule <- rules) {
+              if (rule.rhs.forall(s => nullable.contains(s.symbol))) {
+                nullable += nonterminal
+                changed = true
+              }
+            }
+          }
+        }
+      } while (changed)
+      nullable
+    }
 
     def isWellformed : Boolean = errors.isEmpty
 }
