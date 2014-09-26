@@ -28,16 +28,7 @@ object RegularExpr {
   
   /** expr+ */
   case class REPEAT1(expr : RegularExpr) extends RegularExpr
-
-  /** the space character */
-  val SPACE = CHAR(Range(32))
   
-  /** the newline character */
-  val NEWLINE = CHAR(Range(10))
-  
-  /** any nonempty sequence of spaces and newlines */
-  val WHITESPACE = REPEAT1(ALT(SPACE, NEWLINE))
-
 }
 
 object Utils {
@@ -67,6 +58,20 @@ object Utils {
     var range : RegularExpr = NOTHING
     for (r <- rs) range = ALT(range, r)
     range
+  }
+
+  /** @return true if expr matches the empty string. */
+  def matchesEmpty(expr : RegularExpr) : Boolean = {
+    expr match {
+      case NOTHING => false
+      case EMPTY => true
+      case CHAR(_) => false
+      case ALT(left, right) => matchesEmpty(left) || matchesEmpty(right)
+      case SEQ(first, second) => matchesEmpty(first) && matchesEmpty(second)
+      case OPT(_) => true
+      case REPEAT(_) => true
+      case REPEAT1(expr) => matchesEmpty(expr)
+    }
   }
 
 }

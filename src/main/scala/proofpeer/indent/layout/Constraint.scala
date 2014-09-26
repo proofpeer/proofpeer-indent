@@ -2,7 +2,7 @@ package proofpeer.indent
 
 package object layout {
 
-  sealed abstract class Constraint
+  sealed abstract class Constraint 
   final case class And(constraints : List[Constraint]) extends Constraint
   final case class Or(constraints : List[Constraint]) extends Constraint
   final case class Not(constraint : Constraint) extends Constraint
@@ -118,5 +118,27 @@ package object layout {
   /** Evaluates to Undefined if A has a null span, otherwise to False */
   def NullSpan(A : IndexedSymbol) : Constraint  = 
     Less(FirstRow(A), FirstRow(A), 0)
+
+  object Constraint {
+
+    def collectSymbols(constraint : Constraint) : Set[IndexedSymbol] = {
+      constraint match {
+        case And(cs) => collectSymbols(cs)
+        case Or(cs) => collectSymbols(cs)
+        case Not(c) => collectSymbols(c)
+        case Implies(p, q) => collectSymbols(List(p, q))
+        case Less(left, right, _) => Set(left._2, right._2)
+        case Leq(left, right, _) => Set(left._2, right._2)
+        case Eq(left, right, _) => Set(left._2, right._2)
+      }
+    }
+
+    def collectSymbols(constraints : List[Constraint]) : Set[IndexedSymbol] = {
+      var symbols : Set[IndexedSymbol] = Set()
+      for (c <- constraints) symbols ++= collectSymbols(c)
+      symbols
+    }
+
+  }
 
 }

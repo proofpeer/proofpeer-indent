@@ -8,6 +8,15 @@ object Test {
 
   def main(args : Array[String]) {
     val grammar = Syntax.grammar
+    if (!grammar.isWellformed) {
+      val errors = grammar.errors
+      println("The ProofScript grammar contains " + errors.size + " errors: ")
+      for (i <- 1 to errors.size) {
+        println ("" + i +") " + errors(i - 1))
+      }
+      println("")
+      return
+    }
     val scanrules = grammar.scanrules
     val usedScanSymbols = scanrules.keys.toSet.intersect(grammar.usedSymbols)
     println("number of scan rules: " + scanrules.size)
@@ -23,7 +32,7 @@ object Test {
     val nfa = NFA.fromRegularExprs(exprs)
     val dfa = DFA.fromNFA(nfa)
     val t2 = System.currentTimeMillis
-    dfa.display()
+    println("number of DFA states: " + (dfa.maxState - dfa.startState + 1))
     println("time needed to compute DFA: " + (t2 - t1))
     def scan(s : String) {
       val stream = CharacterStream.fromString(s)
