@@ -45,4 +45,9 @@ final object Span {
     Span(row, row, leftMostInRow, column, column, -1, column, tokenIndex, tokenIndex)
   }
 
+  def apply(span : Span) : Span = {
+    import span._
+    Span(firstRow, lastRow, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstTokenIndex, lastTokenIndex)
+  }
+
 }
