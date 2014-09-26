@@ -25,6 +25,7 @@ object Test {
     val t2 = System.currentTimeMillis
     dfa.display()
     println("time needed to compute DFA: " + (t2 - t1))
+    println("used layout qualifiers: " + proofpeer.indent.layout.CollectQualifiers.collect(grammar))
     def scan(s : String) {
       val stream = CharacterStream.fromString(s)
       val (len, ids) = DFA.run(dfa, stream)  
