@@ -146,8 +146,8 @@ final class Earley(ea : EarleyAutomaton) {
       val dfa = ea.dfas(scope)
       stream.setPosition(k)
       val (len, recognizedTerminals) = DFA.run(dfa, stream, terminals)
-      val span = Span(column0, row, column, k, len)
-      if (!recognizedTerminals.isEmpty) {
+      if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
+        val span = Span(column0, row, column, k, len)
         var item = bins(k).processedItems
         var destBin = bins(k + len)
         if (destBin == null) {
