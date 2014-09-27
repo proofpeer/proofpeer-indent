@@ -1,12 +1,14 @@
 package proofpeer.indent.earley
 
 import proofpeer.indent._
+import proofpeer.indent.regex._
 
 final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : Int) {
   var nextSymbol : Int = 0 
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
+  var evalConstraint : Span.Layout => Boolean = layout => true
 } 
 
 final class EarleyAutomaton(grammar : Grammar) {
@@ -84,6 +86,36 @@ final class EarleyAutomaton(grammar : Grammar) {
       }
     }
     coreItems
+  }
+
+  val (numScopes, dfas, scopeOfTerminal) = {
+    var scopes : Map[String, (Int, List[(Int, RegularExpr)])] = Map()
+    var scopesOfTerminals : Array[Int] = new Array(terminalOfId.size)
+    var scope = 0
+    for (terminal <- grammar.terminals) {
+      val scanrule = grammar.scanrules(terminal)
+      val terminalId = idOfTerminal(terminal)
+      val entry = (terminalId, scanrule.regex)
+      scopes.get(scanrule.scope) match {
+        case None => 
+          scopes += (scanrule.scope -> (scope, List(entry)))
+          scopesOfTerminals((-terminalId) - 1) = scope
+          scope += 1
+        case Some((scope, rules)) => 
+          scopes += (scanrule.scope -> (scope, rules :+ entry))
+          scopesOfTerminals((-terminalId) - 1) = scope
+      }
+    }
+    def scopeOfTerminal(terminalId : Int) : Int = {
+      scopesOfTerminals((-terminalId) - 1)
+    }
+    val dfas = new Array[DFA](scopes.size)
+    for ((_, (scope, rules)) <- scopes) {
+      val nfa = NFA.fromRegularExprs(rules)
+      val dfa = DFA.fromNFA(nfa)
+      dfas(scope) = dfa
+    }
+    (scopes.size, dfas, scopeOfTerminal _)
   }
 
 }

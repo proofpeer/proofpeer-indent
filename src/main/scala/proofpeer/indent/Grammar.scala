@@ -19,7 +19,7 @@ sealed trait Rule {
   def symbol : String
 }
 
-case class ScanRule(symbol : String, scope : Int, priority : Option[Int], regex : RegularExpr) extends Rule
+case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
 
 trait ParseContext {
   def apply[T](indexedSymbol : IndexedSymbol) : T

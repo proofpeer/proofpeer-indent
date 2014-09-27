@@ -14,9 +14,9 @@ final case class Span(
   var leftMost : Int,
   var leftMostFirst : Int,
   var leftMostRest : Int, // negative if not applicable
-  var rightMostLast : Int, // inclusive
+  var rightMostLast : Int, 
   var firstTokenIndex : Int,
-  var lastTokenIndex : Int) // exclusive
+  var lastTokenIndex : Int) 
 {
     
   def isEmpty : Boolean = firstTokenIndex == lastTokenIndex
@@ -41,13 +41,44 @@ final case class Span(
 
 final object Span {
 
-  def apply(leftMostInRow : Int, row : Int, column : Int, tokenIndex : Int) : Span = {
-    Span(row, row, leftMostInRow, column, column, -1, column, tokenIndex, tokenIndex)
+  def apply(leftMostInRow : Int, row : Int, column : Int, tokenIndex : Int, len : Int = 1) : Span = {
+    Span(row, row, leftMostInRow, column, column, -1, column + len - 1, tokenIndex, tokenIndex + len - 1)
   }
 
   def apply(span : Span) : Span = {
     import span._
     Span(firstRow, lastRow, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstTokenIndex, lastTokenIndex)
+  }
+
+  type Layout = Vector[Span] // null is treated as Vector()  
+
+  def layoutsAreEqual(u : Layout, v : Layout) : Boolean = {
+    if (u == null) return v == null
+    if (v == null) return false
+    val size = u.size
+    if (size != v.size) return false
+    for (i <- 0 until size) 
+      if (u(i) != v(i)) return false
+    return true
+  }
+
+  def addToLayout(layout : Layout, span : Span) : Layout = {
+    if (layout == null) Vector(span)
+    else layout :+ span
+  }
+
+  def spanOfLayout(layout : Layout) : Span = {
+    if (layout == null) return null
+    var span : Span = null
+    for (s <- layout) {
+      if (s != null) {
+        if (span == null) 
+          span = Span(s)
+        else 
+          span.addBehind(s)
+      }
+    }
+    span
   }
 
 }

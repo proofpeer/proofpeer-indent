@@ -15,7 +15,7 @@ object Syntax {
   def grammar : Grammar = Grammar(parserules ++ scanrules.map(p => p._2))
 
   def add(name : String, r : RegularExpr, prio : Option[Int] = None) {
-    val scanrule = ScanRule(name, 0, prio, r)
+    val scanrule = ScanRule(name, "\\root", prio, r)
     if (scanrules.get(name).isDefined) throw new RuntimeException("literal already defined: " + name)
     scanrules = scanrules + (name -> scanrule)
   }

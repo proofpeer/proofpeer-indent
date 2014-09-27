@@ -2,6 +2,7 @@ package proofpeer.indent.proofscript
 
 import proofpeer.indent._
 import proofpeer.indent.regex._
+import proofpeer.indent.earley._
 
 
 object Test {
@@ -17,38 +18,16 @@ object Test {
       println("")
       return
     }
-    val scanrules = grammar.scanrules
-    val usedScanSymbols = scanrules.keys.toSet.intersect(grammar.usedSymbols)
-    println("number of scan rules: " + scanrules.size)
-    println("number of used scan symbols: " + usedScanSymbols.size)
-    val scansymbols = usedScanSymbols.toVector
-    var tokenId = 0
-    var exprs : List[(Int, RegularExpr)] = List()
-    for (symbol <- scansymbols) {
-      exprs = (tokenId, scanrules(symbol).regex) :: exprs
-      tokenId += 1
-    }
-    val t1 = System.currentTimeMillis
-    val nfa = NFA.fromRegularExprs(exprs)
-    val dfa = DFA.fromNFA(nfa)
-    val t2 = System.currentTimeMillis
-    println("number of DFA states: " + (dfa.maxState - dfa.startState + 1))
-    println("time needed to compute DFA: " + (t2 - t1))
-    def scan(s : String) {
-      val stream = CharacterStream.fromString(s)
-      val (len, ids) = DFA.run(dfa, stream)  
-      println("scanning '" + s + "' ...")
-      println("  scanned " + len + " characters")
-      println("  tokens = " + ids.map(scansymbols(_)))    
-    }
-    scan("hey")
-    scan("13")
-    scan("hello world!")
-    scan("hello\\u")
-    scan("hello\\uFFFF")
-    var ea = new earley.EarleyAutomaton(grammar)
-    println("number of core items: " + ea.coreItems.size)
-    println("nullable nonterminals: " + grammar.nullableNonterminals)
+    val t1 = System.currentTimeMillis()
+    val ea = new EarleyAutomaton(grammar)
+    val t2 = System.currentTimeMillis()
+    println("Computed earley automaton in " + (t2 - t1) + " ms.")
+    val earley = new Earley(ea)
+    val PROG = ea.idOfNonterminal("Prog")
+    println("PROG = " + PROG)
+    val document = Document.fromString("13 + 9")
+    val recognized = earley.recognize(document, Set(PROG))
+    println("recognized = " + recognized)
   }
 
 }

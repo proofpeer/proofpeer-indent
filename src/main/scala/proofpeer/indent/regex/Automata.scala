@@ -309,14 +309,14 @@ object DFA {
   /** @return (l, ids) where l is the length of the recognized token and ids is the set of 
     * ids of recognized tokens. 
     */
-  def run(dfa : DFA, characterStream : CharacterStream) : (Int, Set[TokenId]) = {
+  def run(dfa : DFA, characterStream : CharacterStream, acceptableTokens : Set[TokenId] = null) : (Int, Set[TokenId]) = {
     var state = dfa.startState
     var recognizedLength = -1
     var recognizedTokens : Set[TokenId] = null
     var len = 0
     while (state >= 0) {
       dfa.finalStates.get(state) match {
-        case Some(ids) => 
+        case Some(ids) if acceptableTokens == null || !ids.intersect(acceptableTokens).isEmpty => 
           recognizedLength = len
           recognizedTokens = ids
         case _ =>

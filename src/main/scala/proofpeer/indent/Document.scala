@@ -4,6 +4,7 @@ trait Document {
   
   def size : Int
   
+  /** @return (row, column, characterCode) */
   def character(position : Int) : (Int, Int, Int)
 
   def firstPositionInRow(row : Int) : Int
