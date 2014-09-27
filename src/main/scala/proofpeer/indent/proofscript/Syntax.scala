@@ -2,10 +2,10 @@ package proofpeer.indent.proofscript
 
 import proofpeer.indent._
 import proofpeer.indent.regex._
-import proofpeer.indent.layout._
 import GrammarConversions._
 import Utils._
 import RegularExpr._
+import Constraint._
 
 object Syntax {
 

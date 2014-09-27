@@ -1,7 +1,6 @@
 package proofpeer.indent
 
 import proofpeer.indent.regex.RegularExpr
-import proofpeer.indent.layout.Constraint
 
 /** IndexedSymbols are symbols that carry an optional index tag.
   * The tags can be used to distinguish otherwise equal symbols on the right hand side

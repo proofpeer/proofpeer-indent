@@ -1,4 +1,4 @@
-package proofpeer.indent.layout
+package proofpeer.indent
 
 /** A span corresponds to the area of the document consisting of the (non-whitespace) tokens from
   * firstTokenIndex to lastTokenIndex (both indices are inclusive). It measures various aspects of that 
