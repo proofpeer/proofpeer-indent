@@ -238,7 +238,7 @@ object Syntax {
   // scan rules for programming language
   add("HexDigit", alt(chars('a', 'f'), chars('A', 'F'), chars('0', '9')))
   add("QuotationMark", char('"'))
-  add("StringLiteral", REPEAT1(alt(
+  add("StringLiteralToken", REPEAT1(alt(
     string("\\n"),
     string("\\\\"),
     string("\\\""),
@@ -304,6 +304,8 @@ object Syntax {
 
   // parse rules for programming language   
   // expr
+  rule("StringLiteral", "StringLiteral StringLiteralToken")
+  rule("StringLiteral", "")
   rule("PrimitiveExpr", "Name")
   rule("Int", "Digits")
   rule("Int", "Minus Digits")
@@ -314,7 +316,6 @@ object Syntax {
   rule("PrimitiveExpr", "ScriptFalse")
   rule("PrimitiveExpr", "Nil")
   rule("PrimitiveExpr", "Apostrophe ValueTerm Apostrophe")
-  rule("PrimitiveExpr", "QuotationMark_1 QuotationMark_2")
   rule("PrimitiveExpr", "QuotationMark_1 StringLiteral QuotationMark_2")
   rule("OrExpr", "OrExpr ScriptOr AndExpr")
   rule("OrExpr", "AndExpr")
@@ -462,7 +463,6 @@ object Syntax {
   rule("AtomicPattern", "Nil")
   rule("AtomicPattern", "IndexedName")
   rule("AtomicPattern", "Int")
-  rule("AtomicPattern", "QuotationMark_1 QuotationMark_2")
   rule("AtomicPattern", "QuotationMark_1 StringLiteral QuotationMark_2")
   rule("AtomicPattern", "ScriptTrue")
   rule("AtomicPattern", "ScriptFalse")

@@ -46,31 +46,31 @@ object Constraint {
   /** Denotes integer typed properties of the geometry of s */
   sealed abstract class LayoutQualifier {
     def apply(indexedSymbol : IndexedSymbol) : LayoutEntity = (this, indexedSymbol)
-    def get(span : Span) : Int 
+    def get(span : Span) : Option[Int] 
   }
 
   /** Row of the first line of s. */
-  final case object FirstRow extends LayoutQualifier { def get(s : Span) = s.firstRow }
+  final case object FirstRow extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.firstRow) }
 
   /** Row of the last line of s. */
-  final case object LastRow extends LayoutQualifier { def get(s : Span) = s.lastRow }
+  final case object LastRow extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.lastRow) }
 
   /** Column of first non-whitespace character in the first line of s. */ 
-  final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = s.leftMostInFirst }
+  final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMostInFirst) }
 
   /** Minimum column in which a character of s appears. */
-  final case object LeftMost extends LayoutQualifier { def get(s : Span) = s.leftMost }
+  final case object LeftMost extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMost) }
 
   /** Minimum column in which a character of s appears which is also in the first line of s. */
-  final case object LeftMostFirst extends LayoutQualifier { def get(s : Span) = s.leftMostFirst }
+  final case object LeftMostFirst extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMostFirst) }
 
   /** Minimum column in which a character of s appears which is not in the first line of s.
     * This value is only defined if s consists of at least two rows. 
     */
-  final case object LeftMostRest extends LayoutQualifier { def get(s : Span) = s.leftMostRest }
+  final case object LeftMostRest extends LayoutQualifier { def get(s : Span) = if (s == null || s.firstRow == s.lastRow) None else Some(s.leftMostRest) }
 
   /** Maximum column in which a character of s appears which is also in the last line of s. */
-  final case object RightMostLast extends LayoutQualifier { def get(s : Span) = s.rightMostLast }
+  final case object RightMostLast extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.rightMostLast) }
 
   /** B starts in the same line that A ends in. */
   def SameLine(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
@@ -216,10 +216,12 @@ object Constraint {
 
   def evalConstraint(constraint : Constraint, f : IndexedSymbol => Option[Int]) : Option[Evaluator] = {
     constraint match {
+      case And(List()) => Some(layout => Some(true))
       case And(cs) =>
-        var e : Option[Evaluator] = None
-        for (eval <- cs.map(c => evalConstraint(c, f))) {
-          (e, eval) match {
+        val constraints = cs.map(c => evalConstraint(c, f))
+        var e : Option[Evaluator] = constraints.head
+        for (eval <- constraints.tail) {
+          e = (e, eval) match {
             case (None, None) => None
             case (None, Some(v)) => Some(PartialAndEval(v))
             case (Some(u), None) => Some(PartialAndEval(u))
@@ -227,10 +229,12 @@ object Constraint {
           }
         }
         e
+      case Or(List()) => Some(layout => Some(false))        
       case Or(cs) =>
-        var e : Option[Evaluator] = None
-        for (eval <- cs.map(c => evalConstraint(c, f))) {
-          (e, eval) match {
+        val constraints = cs.map(c => evalConstraint(c, f))
+        var e : Option[Evaluator] = constraints.head
+        for (eval <- constraints.tail) {
+          e = (e, eval) match {
             case (None, None) => None
             case (None, Some(v)) => Some(PartialOrEval(v))
             case (Some(u), None) => Some(PartialOrEval(u))
@@ -272,8 +276,7 @@ object Constraint {
   }
 
   private def EvalQualifier(q : LayoutQualifier, i : Int) : Measure = layout => {
-    val span = layout(i)
-    if (span == null) None else Some(q.get(span))
+    q.get(layout(i))
   }
 
   private def evalLayoutEntity(entity : LayoutEntity, f : IndexedSymbol => Option[Int]) : Option[Measure] = {

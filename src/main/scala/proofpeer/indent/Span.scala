@@ -19,8 +19,6 @@ final case class Span(
   var lastTokenIndex : Int) 
 {
     
-  def isEmpty : Boolean = firstTokenIndex == lastTokenIndex
-
   /** This assumes that s does not overlap with this span and actually comes ''behind'' it. */
   def addBehind(s : Span) {
     leftMostRest = 
@@ -35,6 +33,12 @@ final case class Span(
     leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
     rightMostLast = s.rightMostLast
     lastTokenIndex = s.lastTokenIndex
+  }
+
+  override def toString : String = {
+    "[from row " + (firstRow + 1) +", column " + (leftMostFirst + 1) +", to row "+ (lastRow + 1) + ", column " + (rightMostLast + 1)+
+      ", first non-whitespace column in first row: " + (leftMostInFirst + 1) + ", left most column: " + (leftMost + 1) + 
+      ", left most column of tail: " + (leftMostRest + 1) + "]"
   }
     
 }

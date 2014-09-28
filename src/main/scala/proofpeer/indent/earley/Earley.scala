@@ -43,6 +43,18 @@ final class Bin(val pool : BitmapPool) {
 
   private var bitmap = pool.allocate()
 
+  def countItems(item : Item) : Int = {
+    var num = 0
+    var x = item
+    while (x != null) {
+      num += 1
+      x = x.nextItem
+    }
+    num
+  }
+
+  def size : Int = countItems(newItems) + countItems(processedItems)
+
   def nextItem() : Item = {
     if (newItems != null) {
       val item = newItems
@@ -146,7 +158,13 @@ final class Earley(ea : EarleyAutomaton) {
       val dfa = ea.dfas(scope)
       stream.setPosition(k)
       val (len, recognizedTerminals) = DFA.run(dfa, stream, terminals)
+      // !!!!! TO DO: apply priority of terminals
       if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
+        /*println("looked for terminals: " + terminals.map(ea.terminalOfId(_)))
+        for (r <- recognizedTerminals) {
+          val t = ea.terminalOfId(r)
+          println("$$$$$$  scanned terminal " + t + " at row " + (row + 1) + ", column " + (column + 1) + ", len = " + len)
+        }*/
         val span = Span(column0, row, column, k, len)
         var item = bins(k).processedItems
         var destBin = bins(k + len)
@@ -169,29 +187,48 @@ final class Earley(ea : EarleyAutomaton) {
     }
   }
 
-  def recognize(document : Document, nonterminals : Set[Int]) : Set[Int] = {
+  def recognizedNonterminals(bin : Bin) : Set[Int] = {
+    if (bin == null) return Set()
+    var recognized : Set[Int] = Set()
+    var item = bin.processedItems
+    while (item != null) {
+      if (item.origin == 0) {
+        val coreItem = ea.coreItems(item.coreItemId)
+        if (coreItem.nextSymbol == 0) recognized += coreItem.nonterminal
+      }
+      item = item.nextItem
+    }
+    recognized
+  }
+
+  def recognize(document : Document, nonterminals : Set[Int]) : Set[Int]  = {
     var bins : Array[Bin] = new Array(document.size + 1)
+    println("number of bins to process: " + bins.length)
     bins(0) = initialBin(nonterminals)
     val stream = new DocumentCharacterStream(document)
     for (k <- 0 until document.size) {
-      println("processing bin " + k)
+      //if (bins(k) != null) println("processing bin " + k)
       scan(document, stream, bins, k, predictAndComplete(bins, k))
     }
+    println("processing last bin")
     predictAndComplete(bins, document.size)
-    var recognized : Set[Int] = Set()
-    val bin = bins(document.size)
-    if (bin == null) Set()
-    else {
-      var item = bin.processedItems
-      while (item != null) {
-        if (item.origin == 0) {
-          val coreItem = ea.coreItems(item.coreItemId)
-          if (coreItem.nextSymbol == 0) recognized += coreItem.nonterminal
-        }
-        item = item.nextItem
+    val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
+    if (recognized.isEmpty) {
+      println("parse error")
+      var k = document.size
+      var foundNonemptyBin = false
+      while (k >= 0 && !foundNonemptyBin) {
+        if (bins(k) != null && bins(k).processedItems != null) 
+          foundNonemptyBin = true
+        else k -= 1
       }
-      recognized.intersect(nonterminals)
+      if (foundNonemptyBin) {
+        val (row, column, code) = document.character(k)
+        val c : Char = code.toChar
+        println("last parse activity found at position "+k+" in row "+(row + 1)+", column "+(column + 1)+" at character code " + code + " = '" + c +"'")        
+      }
     }
+    recognized
   }
 
 }

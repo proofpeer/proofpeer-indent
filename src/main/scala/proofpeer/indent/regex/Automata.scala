@@ -67,8 +67,8 @@ object NFA {
     var finalStates : FinalStates = Map()
     var transitions : Transitions = Map()
     for ((tokenId, expr) <- exprs) {
-      val nfa = fromRegularExpr(tokenId, expr, startState)
-      startStates += startState
+      val nfa = fromRegularExpr(tokenId, expr, startState + 1)
+      startStates += nfa.startState
       finalStates ++= nfa.finalStates
       transitions ++= nfa.transitions
       maxState = nfa.maxState
@@ -318,7 +318,10 @@ object DFA {
       dfa.finalStates.get(state) match {
         case Some(ids) if acceptableTokens == null || !ids.intersect(acceptableTokens).isEmpty => 
           recognizedLength = len
-          recognizedTokens = ids
+          if (acceptableTokens == null)
+            recognizedTokens = ids
+          else
+            recognizedTokens = ids.intersect(acceptableTokens)
         case _ =>
       }
       val character = characterStream.nextCharacter

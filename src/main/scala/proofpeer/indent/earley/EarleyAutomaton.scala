@@ -74,7 +74,7 @@ final class EarleyAutomaton(grammar : Grammar) {
                   case None => true
                 }
               }
-            case None =>
+            case _ =>
           }
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)
@@ -116,7 +116,7 @@ final class EarleyAutomaton(grammar : Grammar) {
           scopesOfTerminals((-terminalId) - 1) = scope
           scope += 1
         case Some((scope, rules)) => 
-          scopes += (scanrule.scope -> (scope, rules :+ entry))
+          scopes += (scanrule.scope -> (scope, entry :: rules))
           scopesOfTerminals((-terminalId) - 1) = scope
       }
     }
