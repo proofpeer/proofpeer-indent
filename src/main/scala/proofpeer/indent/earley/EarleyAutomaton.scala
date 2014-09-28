@@ -132,4 +132,33 @@ final class EarleyAutomaton(grammar : Grammar) {
     (scopes.size, dfas, scopeOfTerminal _)
   }
 
+  val terminalPriority = {
+    var terminalPriority : Map[Int, Option[Int]] = Map()
+    for ((id, terminal) <- terminalOfId) {
+      terminalPriority += (id -> grammar.scanrules(terminal).priority)
+    }
+    terminalPriority
+  }
+
+  def prioritizeTerminals(terminals : Set[Int]) : Set[Int] = {
+    if (terminals == null || terminals.size <= 1) return terminals
+    var nonprio : Set[Int] = Set()
+    var highestPrio : Int = Int.MinValue
+    var terminalsWithHighestPrio : Set[Int] = Set()
+    for (terminal <- terminals) {
+      terminalPriority(terminal) match {
+        case None =>
+          nonprio += terminal
+        case Some(prio) =>
+          if (highestPrio == prio) {
+            terminalsWithHighestPrio += terminal
+          } else if (highestPrio < prio) {
+            terminalsWithHighestPrio = Set(terminal)
+            highestPrio = prio
+          }
+      }
+    }
+    nonprio ++ terminalsWithHighestPrio
+  }
+
 }

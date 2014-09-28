@@ -157,14 +157,9 @@ final class Earley(ea : EarleyAutomaton) {
     for ((scope, terminals) <- scopes) {
       val dfa = ea.dfas(scope)
       stream.setPosition(k)
-      val (len, recognizedTerminals) = DFA.run(dfa, stream, terminals)
-      // !!!!! TO DO: apply priority of terminals
+      val (len, _recognizedTerminals) = DFA.run(dfa, stream, terminals)
+      val recognizedTerminals = ea.prioritizeTerminals(_recognizedTerminals)
       if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
-        /*println("looked for terminals: " + terminals.map(ea.terminalOfId(_)))
-        for (r <- recognizedTerminals) {
-          val t = ea.terminalOfId(r)
-          println("$$$$$$  scanned terminal " + t + " at row " + (row + 1) + ", column " + (column + 1) + ", len = " + len)
-        }*/
         val span = Span(column0, row, column, k, len)
         var item = bins(k).processedItems
         var destBin = bins(k + len)
