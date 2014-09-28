@@ -25,7 +25,7 @@ object Test {
     val earley = new Earley(ea)
     val PROG = ea.idOfNonterminal("Prog")
     println("PROG = " + PROG)
-    val document = Document.fromString("*13+7+ 8")
+    val document = Document.fromString("-13+7+ 8")
     val recognized = earley.recognize(document, Set(PROG))
     println("recognized = " + recognized)
   }

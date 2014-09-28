@@ -62,6 +62,20 @@ final class EarleyAutomaton(grammar : Grammar) {
             if (coreItem.nextSymbol <= 0) false else grammar.nullableNonterminals.contains(rule.rhs(dot).symbol)
           coreItem.nextCoreItem = 
             if (coreItem.nextSymbol == 0) -1 else id + 1
+          def f(s : IndexedSymbol) : Option[Int] = {
+            val i = rule.rhs.indexOf(s)
+            if (i < dot) Some(i) else None
+          }
+          Constraint.evalConstraint(rule.constraint, f) match {
+            case Some(eval) => 
+              coreItem.evalConstraint = layout => {
+                eval(layout) match {
+                  case Some(q) => q
+                  case None => true
+                }
+              }
+            case None =>
+          }
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)
         }

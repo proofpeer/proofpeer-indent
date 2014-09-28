@@ -138,4 +138,150 @@ object Constraint {
     symbols
   }
 
+  type Evaluator = Span.Layout => Option[Boolean]
+  type Measure = Span.Layout => Option[Int]
+
+  private def AndEval(u : Evaluator, v : Evaluator) : Evaluator = layout => 
+    (u(layout), v(layout)) match {
+      case (Some(p), Some(q)) => Some(p && q)
+      case (_, Some(false)) => Some(false)
+      case (Some(false), _) => Some(false)
+      case _ => None
+    }
+
+  private def PartialAndEval(u : Evaluator) : Evaluator = layout =>
+    u(layout) match {
+      case Some(false) => Some(false)
+      case _ => None
+    }
+
+  private def OrEval(u : Evaluator, v : Evaluator) : Evaluator = layout => 
+    (u(layout), v(layout)) match {
+      case (Some(p), Some(q)) => Some(p || q)
+      case (_, Some(true)) => Some(true)
+      case (Some(true), _) => Some(true)
+      case _ => None
+    }
+
+  private def PartialOrEval(u : Evaluator) : Evaluator = layout =>
+    u(layout) match {
+      case Some(true) => Some(true)
+      case _ => None
+    }
+
+  private def NotEval(u : Evaluator) : Evaluator = layout => 
+    u(layout) match {
+      case None => None
+      case Some(p) => Some(!p)
+    }
+
+  private def ImpliesEval(u : Evaluator, v : Evaluator) : Evaluator = layout => 
+    (u(layout), v(layout)) match {
+      case (Some(p), Some(q)) => Some(if (p) q else true)
+      case (Some(false), _) => Some(true)
+      case (_, Some(true)) => Some(true)
+      case _ => None
+    }
+
+  private def PartialConclEval(u : Evaluator) : Evaluator = layout =>
+    u(layout) match {
+      case Some(true) => Some(true)
+      case _ => None
+    }
+
+  private def PartialHypEval(u : Evaluator) : Evaluator = layout =>
+    u(layout) match {
+      case Some(false) => Some(true)
+      case _ => None
+    }
+
+  private def LessEval(left : Measure, right : Measure, delta : Int) : Evaluator = layout =>
+    (left(layout), right(layout)) match {
+      case (Some(left), Some(right)) => Some(left < right + delta)
+      case _ => None
+    }
+
+  private def LeqEval(left : Measure, right : Measure, delta : Int) : Evaluator = layout =>
+    (left(layout), right(layout)) match {
+      case (Some(left), Some(right)) => Some(left <= right + delta)
+      case _ => None
+    }
+
+  private def EqEval(left : Measure, right : Measure, delta : Int) : Evaluator = layout =>
+    (left(layout), right(layout)) match {
+      case (Some(left), Some(right)) => Some(left == right + delta)
+      case _ => None
+    }
+
+
+  def evalConstraint(constraint : Constraint, f : IndexedSymbol => Option[Int]) : Option[Evaluator] = {
+    constraint match {
+      case And(cs) =>
+        var e : Option[Evaluator] = None
+        for (eval <- cs.map(c => evalConstraint(c, f))) {
+          (e, eval) match {
+            case (None, None) => None
+            case (None, Some(v)) => Some(PartialAndEval(v))
+            case (Some(u), None) => Some(PartialAndEval(u))
+            case (Some(u), Some(v)) => Some(AndEval(u, v))
+          }
+        }
+        e
+      case Or(cs) =>
+        var e : Option[Evaluator] = None
+        for (eval <- cs.map(c => evalConstraint(c, f))) {
+          (e, eval) match {
+            case (None, None) => None
+            case (None, Some(v)) => Some(PartialOrEval(v))
+            case (Some(u), None) => Some(PartialOrEval(u))
+            case (Some(u), Some(v)) => Some(OrEval(u, v))
+          }
+        }
+        e
+      case Implies(u, v) =>
+        (evalConstraint(u, f), evalConstraint(v, f)) match {
+          case (None, None) => None
+          case (None, Some(v)) => Some(PartialConclEval(v))
+          case (Some(u), None) => Some(PartialHypEval(u))
+          case (Some(u), Some(v)) => Some(ImpliesEval(u, v))
+        }
+      case Not(u) =>
+        (evalConstraint(u, f)) match {
+          case None => None
+          case Some(u) => Some(NotEval(u))
+        }
+      case Less(left, right, delta) =>
+        (evalLayoutEntity(left, f), evalLayoutEntity(right, f)) match {
+          case (None, _) => None
+          case (_, None) => None
+          case (Some(left), Some(right)) => Some(LessEval(left, right, delta))
+        }
+      case Leq(left, right, delta) =>
+        (evalLayoutEntity(left, f), evalLayoutEntity(right, f)) match {
+          case (None, _) => None
+          case (_, None) => None
+          case (Some(left), Some(right)) => Some(LeqEval(left, right, delta))
+        }
+      case Eq(left, right, delta) =>
+        (evalLayoutEntity(left, f), evalLayoutEntity(right, f)) match {
+          case (None, _) => None
+          case (_, None) => None
+          case (Some(left), Some(right)) => Some(EqEval(left, right, delta))
+        }
+    }
+  }
+
+  private def EvalQualifier(q : LayoutQualifier, i : Int) : Measure = layout => {
+    val span = layout(i)
+    if (span == null) None else Some(q.get(span))
+  }
+
+  private def evalLayoutEntity(entity : LayoutEntity, f : IndexedSymbol => Option[Int]) : Option[Measure] = {
+    val (q, s) = entity
+    f(s) match {
+      case None => None
+      case Some(i) => Some(EvalQualifier(q, i))
+    }
+  } 
+
 }
