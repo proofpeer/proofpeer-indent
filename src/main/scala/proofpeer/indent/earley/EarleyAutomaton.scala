@@ -4,6 +4,7 @@ import proofpeer.indent._
 import proofpeer.indent.regex._
 
 final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : Int) {
+  var rhs : Vector[Int] = null
   var nextSymbol : Int = 0 
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
@@ -53,9 +54,11 @@ final class EarleyAutomaton(grammar : Grammar) {
       var ruleindex = 0
       val nonterminal = idOfNonterminal(symbol)
       for (rule <- rules) {
+        val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           val coreItem = new CoreItem(nonterminal, ruleindex, dot)
+          coreItem.rhs = rhs
           coreItem.nextSymbol = 
             if (dot == rule.rhs.size) 0 else idOfSymbol(rule.rhs(dot).symbol)
           coreItem.nextSymbolIsNullable  = 
@@ -160,5 +163,7 @@ final class EarleyAutomaton(grammar : Grammar) {
     }
     nonprio ++ terminalsWithHighestPrio
   }
+
+  def coreItemOf(item : Earley.Item) : CoreItem = coreItems(item.coreItemId)
 
 }

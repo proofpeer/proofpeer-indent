@@ -10,6 +10,27 @@ object Earley {
 
 }
 
+sealed trait ParseTree {
+  def symbol : Int
+  def span : Span
+  def hasAmbiguities : Boolean
+}
+
+final case class AmbiguousNode(nonterminal : Int, span : Span) extends ParseTree {
+  def symbol = nonterminal
+  def hasAmbiguities = true
+}
+
+final case class NonterminalNode(nonterminal : Int, ruleindex : Int, span : Span, rhs : Vector[ParseTree]) extends ParseTree {
+  def symbol = nonterminal
+  def hasAmbiguities = rhs.exists(_.hasAmbiguities)
+}
+
+final case class TerminalNode(terminal : Int, span : Span) extends ParseTree {
+  def symbol = terminal
+  def hasAmbiguities = false
+}
+
 final class BitmapPool(numCoreItems : Int) {
 
   type Bitmap = Array[Earley.Item]
@@ -111,7 +132,7 @@ final class Earley(ea : EarleyAutomaton) {
     var item = bin.nextItem()
     var terminals : Set[Int] = Set()
     while (item != null) {
-      val coreItem = ea.coreItems(item.coreItemId)
+      val coreItem = ea.coreItemOf(item)
       val nextSymbol = coreItem.nextSymbol
       if (nextSymbol < 0) /* terminal */ 
         terminals += nextSymbol
@@ -125,7 +146,7 @@ final class Earley(ea : EarleyAutomaton) {
         val span = Span.spanOfLayout(item.layout)
         var originItem = bins(item.origin).processedItems
         while (originItem != null) {
-          val originCoreItem = ea.coreItems(originItem.coreItemId)
+          val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
             val layout = Span.addToLayout(originItem.layout, span)
             val nextCoreItemId = originCoreItem.nextCoreItem
@@ -168,7 +189,7 @@ final class Earley(ea : EarleyAutomaton) {
           bins(k + len) = destBin
         }
         while (item != null) {
-          val coreItem = ea.coreItems(item.coreItemId)
+          val coreItem = ea.coreItemOf(item)
           if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
             val layout = Span.addToLayout(item.layout, span)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
@@ -188,7 +209,7 @@ final class Earley(ea : EarleyAutomaton) {
     var item = bin.processedItems
     while (item != null) {
       if (item.origin == 0) {
-        val coreItem = ea.coreItems(item.coreItemId)
+        val coreItem = ea.coreItemOf(item)
         if (coreItem.nextSymbol == 0) recognized += coreItem.nonterminal
       }
       item = item.nextItem
@@ -196,20 +217,16 @@ final class Earley(ea : EarleyAutomaton) {
     recognized
   }
 
-  def recognize(document : Document, nonterminals : Set[Int]) : Set[Int]  = {
+  def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[Bin]), Int]  = {
     var bins : Array[Bin] = new Array(document.size + 1)
-    println("number of bins to process: " + bins.length)
     bins(0) = initialBin(nonterminals)
     val stream = new DocumentCharacterStream(document)
     for (k <- 0 until document.size) {
-      //if (bins(k) != null) println("processing bin " + k)
       scan(document, stream, bins, k, predictAndComplete(bins, k))
     }
-    println("processing last bin")
     predictAndComplete(bins, document.size)
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
-      println("parse error")
       var k = document.size
       var foundNonemptyBin = false
       while (k >= 0 && !foundNonemptyBin) {
@@ -217,13 +234,54 @@ final class Earley(ea : EarleyAutomaton) {
           foundNonemptyBin = true
         else k -= 1
       }
-      if (foundNonemptyBin) {
-        val (row, column, code) = document.character(k)
-        val c : Char = code.toChar
-        println("last parse activity found at position "+k+" in row "+(row + 1)+", column "+(column + 1)+" at character code " + code + " = '" + c +"'")        
-      }
-    }
-    recognized
+      Right(k)
+    } else {
+      Left((recognized, bins))
+    } 
   }
+
+  /** Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
+    * @param startPosition the start position (inclusive)
+    * @param endPosition the end position (exclusive)
+    */
+  def constructParseTree(document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    val bin = bins(endPosition)
+    var item = bin.processedItems
+    var foundItem : Item = null
+    while (item != null) {
+      val coreItem = ea.coreItemOf(item)
+      if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
+        if (foundItem != null) return AmbiguousNode(nonterminal, Span.spanOfLayout(foundItem.layout))
+        foundItem = item
+      }
+      item = item.nextItem
+    }
+    if (foundItem == null) throw new RuntimeException("cannot construct parse tree")
+    val coreItem = ea.coreItemOf(foundItem)
+    var subtrees = new Array[ParseTree](coreItem.rhs.size)
+    var pos = startPosition
+    for (i <- 0 until subtrees.size) {
+      val symbol = coreItem.rhs(i)
+      val span = foundItem.layout(i)
+      if (symbol < 0) {
+        subtrees(i) = TerminalNode(symbol, span)
+        pos = span.lastTokenIndex + 1
+      } else if (span != null) {
+        subtrees(i) = constructParseTree(document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
+        pos = span.lastTokenIndex + 1
+      } else
+        subtrees(i) = constructParseTree(document, bins, symbol, pos, pos) 
+    }
+    NonterminalNode(nonterminal, coreItem.ruleindex, Span.spanOfLayout(foundItem.layout), subtrees.toVector)
+  }
+
+  def parse(document : Document, nonterminal : Int) : Either[ParseTree, Int] = {
+    recognize(document, Set(nonterminal)) match {
+      case Left((recognized, bins)) =>
+        Left(constructParseTree(document, bins, nonterminal, 0, document.size))
+      case Right(k) => 
+        Right(k) 
+    }
+  } 
 
 }
