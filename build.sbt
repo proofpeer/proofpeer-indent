@@ -2,7 +2,7 @@ organization := "net.proofpeer"
 
 name := "ProofPeer Indent"
 
-version := "0.3-SNAPSHOT"
+version := "0.3"
 
 scalaVersion := "2.11.1"
 
