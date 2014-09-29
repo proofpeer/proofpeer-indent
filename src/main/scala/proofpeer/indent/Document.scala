@@ -1,58 +1,27 @@
 package proofpeer.indent
 
-/** The members of Span correspond to the [[Constraints.LayoutEntity]] cases, except for firstTokenIndex and lastTokenIndex */
-case class Span(
-  firstRow : Int,
-  lastRow : Int,
-  leftMostInFirst : Int,
-  leftMost : Int,
-  leftMostFirst : Int,
-  leftMostRest : Option[Int],
-  rightMostLast : Int,
-  firstTokenIndex : Int,
-  lastTokenIndex : Int) 
-{
-    
-  /** This assumes that s does not overlap with this span and actually comes ''behind'' it. */
-  def addBehind(s : Span) : Span = {
-    val _firstRow = firstRow
-    val _lastRow = s.lastRow
-    val _leftMostInFirst = leftMostInFirst
-    val _leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
-    val _leftMostFirst = leftMostFirst
-    val _rightMostLast = s.rightMostLast
-    val _leftMostRest = 
-      if (firstRow < s.firstRow) {
-        leftMostRest match {
-          case None => Some(s.leftMost)
-          case Some(lmr) => Some(if (lmr <= s.leftMost) lmr else s.leftMost)
-        }
-      }
-      else
-        s.leftMostRest
-    val _firstTokenIndex = firstTokenIndex
-    val _lastTokenIndex = s.lastTokenIndex
-    Span(_firstRow, _lastRow, _leftMostInFirst, _leftMost, _leftMostFirst, _leftMostRest, _rightMostLast, 
-        _firstTokenIndex, _lastTokenIndex)   
-  }
-    
-}
-  
-case class Token(terminal : API.Terminal, i : Int, span : Span)
-
 trait Document {
   
   def size : Int
   
-  def getToken(position : Int) : Token
+  /** @return (row, column, characterCode) */
+  def character(position : Int) : (Int, Int, Int)
+
+  def firstPositionInRow(row : Int) : Int
   
   def getText(position : Int, len : Int) : String
 
+  def getText(span : Span) : String = 
+    if (span == null) ""
+    else getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+
 }
 
-class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
+final class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
     
   def size = characters.size
+
+  def character(position : Int) = characters(position)
 
   private def computeRows() : Vector[Int] = {
     var rows : List[Int] = List()
@@ -70,16 +39,9 @@ class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
   
   /** Points to the first position with greater or equal row */
   private val rows = computeRows()   
-  
-  def getToken(position : Int) : Token = {
-    import API._
-    val (row, column, code) = characters (position)
-    val (_, column0, _) = characters(rows(row))
-    val terminal = Terminal(SymbolNameCode(code)) 
-    val span = Span(row, row, column0, column, column, None, column, position, position)
-    Token(terminal, position, span)
-  }
-  
+
+  def firstPositionInRow(row : Int) : Int = rows(row)
+    
   def getText(position : Int, len : Int) : String = {
     if (len == 0) return ""
     var (row, column, code) = characters (position)
@@ -106,12 +68,12 @@ class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {
   
 }
 
-object UnicodeDocument {
+object Document {
   
-  def fromString(text : String) : UnicodeDocument = fromString(text, None)
+  def fromString(text : String) : Document = fromString(text, None)
   
-  def fromString(text : String, tab : Option[Int]) : UnicodeDocument = {
-    import proofpeer.scala.lang._
+  def fromString(text : String, tab : Option[Int]) : Document = {
+    import proofpeer.general.StringUtils._
     var characters : List[(Int, Int, Int)] = List()
     var row = 0
     var column = 0

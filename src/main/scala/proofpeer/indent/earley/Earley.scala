@@ -1,297 +1,306 @@
 package proofpeer.indent.earley
 
-import proofpeer.indent.API.{Terminal, Nonterminal, TerminalLike, Symbol}
-import proofpeer.indent.Document
+import proofpeer.indent._
+import proofpeer.indent.regex.DFA
+import proofpeer.indent.regex.DocumentCharacterStream
 
-import scala.collection.immutable._
-import scala.collection.mutable.{Map => MutableMap}
-import scala.collection.mutable.{Set => MutableSet}
+object Earley {
 
-case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : Int) {
-  def inc : Item = Item(nonterminal, ruleindex, dot + 1, origin)
-  //override def hashCode : Int = List[Any](nonterminal, ruleindex, dot, origin).hashCode
+  final class Item(val coreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item)
+
 }
 
-/** General-purpose Earley parser. Apart from using Terminal, Nonterminal, TerminalLike
-  * and Symbol, it is entirely independent of [[proofpeer.indent.API]].
-  * It can be used in any situation that calls for an Earley parser / recognizer. 
-  * This implementation has several special features compared with the usual Earley recognizer:
-  *   - It computes values and can therefore be used not only for recognizing, but also for parsing
-  *   - It includes the parsing of blackboxes: the parser can delegate parsing of 
-  *     blackbox nonterminals to third-parties.
-  *   - The application of rules can be rejected based on the values that have been computed for the 
-  *     symbols on the right hand side. 
-  */
-class Earley[Value, IntermediateValue](
-    grammar : BlackboxGrammar[Value, IntermediateValue], 
-    document : Document) 
-{
-  
-  def ruleOfItem(item : Item) : Rule = grammar.rulesOfNonterminal(item.nonterminal)(item.ruleindex)
-  
-  def isCompletedItem(item : Item) : Boolean = {
-    val rule = ruleOfItem(item)
-    item.dot == rule.rhsSize
-  }
-  
-  def expectedSymbol(item : Item) : Option[Symbol] = {
-    val rule = ruleOfItem(item)
-    val dot = item.dot
-    if (dot < rule.rhsSize) Some(rule.rhsAt(dot)) else None
-  }
-  
-  type MoreItems = Seq[(Item, IntermediateValue)]
-  
-  case class ItemBin(binindex : Int, items : MutableMap[Item, IntermediateValue]) {
+sealed trait ParseTree {
+  def symbol : String
+  def span : Span
+  def hasAmbiguities : Boolean
+}
 
-    /** Add item -> value to the bin.
-      * @return true if adding item -> value changes then bin, otherwise false 
-      */
-    def add(item : Item, value : IntermediateValue) : Boolean = {
-      items.get(item) match {
-        case None => 
-          items += (item -> value)
-          true
-        case Some (oldvalue) =>
-          grammar.mergeValues(document, item.origin, binindex, item.nonterminal, item.ruleindex, 
-            item.dot, oldvalue, value) match 
-          {
-            case None =>
-              false
-            case Some(newvalue) =>
-              items += (item -> newvalue)
-              true
+final case class AmbiguousNode(nonterminal : String, span : Span) extends ParseTree {
+  def symbol = nonterminal
+  def hasAmbiguities = true
+}
+
+final case class NonterminalNode(nonterminal : String, ruleindex : Int, span : Span, rhs : Vector[ParseTree], value : Any) extends ParseTree {
+  def symbol = nonterminal
+  lazy val hasAmbiguities = rhs.exists(_.hasAmbiguities)
+}
+
+final case class TerminalNode(terminal : String, span : Span) extends ParseTree {
+  def symbol = terminal
+  def hasAmbiguities = false
+}
+
+final class BitmapPool(numCoreItems : Int) {
+
+  type Bitmap = Array[Earley.Item]
+
+  private var bitmaps : List[Bitmap] = List()
+
+  def allocate() : Bitmap = {
+    bitmaps match {
+      case bitmap :: bs =>
+        bitmaps = bs
+        bitmap
+      case _ =>
+        new Array(numCoreItems)
+    }
+  }
+
+  def release(bitmap : Bitmap) {
+    for (i <- 0 until numCoreItems) bitmap(i) = null
+    bitmaps = bitmap :: bitmaps
+  }
+
+}
+
+final class Bin(val pool : BitmapPool) {
+
+  import Earley._
+
+  var processedItems : Item = null
+
+  private var newItems : Item = null 
+
+  private var bitmap = pool.allocate()
+
+  def countItems(item : Item) : Int = {
+    var num = 0
+    var x = item
+    while (x != null) {
+      num += 1
+      x = x.nextItem
+    }
+    num
+  }
+
+  def size : Int = countItems(newItems) + countItems(processedItems)
+
+  def nextItem() : Item = {
+    if (newItems != null) {
+      val item = newItems
+      newItems = item.nextItem
+      item.nextItem = processedItems
+      processedItems = item
+      item
+    } else null
+  }
+
+  def addItem(coreItemId : Int, origin : Int, layout : Span.Layout) {
+    var item = bitmap(coreItemId)
+    if (item == null) {
+      newItems = new Item(coreItemId, origin, layout, null, newItems)
+      bitmap(coreItemId) = newItems
+    } else if (item.origin != origin || !Span.layoutsAreEqual(item.layout, layout)) {
+      var sibling = item.nextSibling
+      while (sibling != null && (origin != sibling.origin || !Span.layoutsAreEqual(layout, sibling.layout)))
+        sibling = sibling.nextSibling
+      if (sibling == null) {
+        newItems = new Item(coreItemId, origin, layout, item, newItems)
+        bitmap(coreItemId) = newItems
+      }
+    }
+  }
+
+  /** This is called when no new calls to [[addItem]] will be made. */
+  def finishedAdding() {
+    pool.release(bitmap)
+    bitmap = null
+  }
+
+}
+
+final class Earley(ea : EarleyAutomaton) {
+
+  import Earley._
+
+  val pool = new BitmapPool(ea.coreItems.size)
+  
+  def initialBin(nonterminals : Set[Int]) : Bin = {
+    val bin = new Bin(pool)
+    for (coreItemId <- 0 until ea.coreItems.size) {
+      val coreItem = ea.coreItems(coreItemId)
+      if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) 
+        bin.addItem(coreItemId, 0, null)
+    }
+    bin
+  }
+
+  def predictAndComplete(bins : Array[Bin], k : Int) : Set[Int] = {
+    val bin = bins(k)
+    if (bin == null) return null
+    var item = bin.nextItem()
+    var terminals : Set[Int] = Set()
+    while (item != null) {
+      val coreItem = ea.coreItemOf(item)
+      val nextSymbol = coreItem.nextSymbol
+      if (nextSymbol < 0) /* terminal */ 
+        terminals += nextSymbol
+      else if (nextSymbol > 0) /* nonterminal */ {
+        for (predictedItem <- coreItem.predictedCoreItems) 
+          bin.addItem(predictedItem, k, null)
+        if (coreItem.nextSymbolIsNullable) 
+          bin.addItem(coreItem.nextCoreItem, item.origin, Span.addToLayout(item.layout, null))
+      } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
+        val nonterminal = coreItem.nonterminal
+        val span = Span.spanOfLayout(item.layout)
+        var originItem = bins(item.origin).processedItems
+        while (originItem != null) {
+          val originCoreItem = ea.coreItemOf(originItem)
+          if (originCoreItem.nextSymbol == nonterminal) {
+            val layout = Span.addToLayout(originItem.layout, span)
+            val nextCoreItemId = originCoreItem.nextCoreItem
+            val nextCoreItem = ea.coreItems(nextCoreItemId)
+            if (nextCoreItem.evalConstraint(layout)) 
+              bin.addItem(nextCoreItemId, originItem.origin, layout)
           }
+          originItem = originItem.nextItem
+        }
+      } 
+      item = bin.nextItem()
+    }    
+    bin.finishedAdding()
+    terminals
+  }
+
+  def scan(document : Document, stream : DocumentCharacterStream, bins : Array[Bin], k : Int, terminals : Set[Int]) {
+    if (terminals == null || terminals.isEmpty) return
+    var scopes : Map[Int, Set[Int]] = Map()
+    for (terminal <- terminals) {
+      val scope = ea.scopeOfTerminal(terminal)
+      scopes.get(scope) match {
+        case None => scopes += (scope -> Set(terminal))
+        case Some(ts) => scopes += (scope -> (ts + terminal))
       }
     }
-    
-    def add(more_items : MoreItems) : Boolean = {
-      var changed = false
-      for ((item, value) <- more_items) {
-        changed = add(item, value) || changed
-      }
-      changed
-    }
-    
-  }
-  
-  object ItemBin {
-    
-    def empty(index : Int) = new ItemBin(index, MutableMap())
-    
-    def singleton(index : Int, item : Item, value : IntermediateValue) = new ItemBin(index, MutableMap(item -> value))
-    
-  }
-  
-  def predict_items(nonterminal : Nonterminal, origin : Int) : MoreItems = {
-    val rules = grammar.rulesOfNonterminal(nonterminal)
-    var ruleindex = 0
-    rules.toSeq.map {
-      case rule =>
-        val item = Item(nonterminal, ruleindex, 0, origin)
-        val value = grammar.initialValue(document, origin, nonterminal, ruleindex)
-        ruleindex += 1
-        (item -> value)
-    }
-  }
-  
-  def complete_items(completed_binindex : Int, bin : ItemBin, nonterminal : Nonterminal, value : Value) : MoreItems = {
-    var completed_items : List[(Item, IntermediateValue)] = List()
-    for ((item, v) <- bin.items) {
-      val s = expectedSymbol(item)
-      if (s == Some (nonterminal)) {
-        grammar.nextValue(document, item.origin, bin.binindex, completed_binindex, 
-          item.nonterminal, item.ruleindex, item.dot, v, value) match 
-        {
-          case None => 
-          case Some(nextvalue) =>
-            completed_items = (item.inc -> nextvalue) :: completed_items
+    val (row, column, _) = document.character(k)
+    val (_, column0, _) = document.character(document.firstPositionInRow(row))
+    for ((scope, terminals) <- scopes) {
+      val dfa = ea.dfas(scope)
+      stream.setPosition(k)
+      val (len, _recognizedTerminals) = DFA.run(dfa, stream, terminals)
+      val recognizedTerminals = ea.prioritizeTerminals(_recognizedTerminals)
+      if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
+        val span = Span(column0, row, column, k, len)
+        var item = bins(k).processedItems
+        var destBin = bins(k + len)
+        if (destBin == null) {
+          destBin = new Bin(pool)
+          bins(k + len) = destBin
+        }
+        while (item != null) {
+          val coreItem = ea.coreItemOf(item)
+          if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
+            val layout = Span.addToLayout(item.layout, span)
+            val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
+            if (nextCoreItem.evalConstraint(layout)) {
+              destBin.addItem(coreItem.nextCoreItem, item.origin, layout)
+            }
+          }
+          item = item.nextItem
         }
       }
     }
-    completed_items    
   }
-    
-  class Bins {
-    private val bins : MutableMap[Int, ItemBin] = MutableMap()
-    def apply(k : Int) : ItemBin = {
-      bins.get(k) match {
-        case Some(bin) => bin
-        case None =>
-          val bin = ItemBin.empty(k)
-          bins += (k -> bin)
-          bin
+
+  def recognizedNonterminals(bin : Bin) : Set[Int] = {
+    if (bin == null) return Set()
+    var recognized : Set[Int] = Set()
+    var item = bin.processedItems
+    while (item != null) {
+      if (item.origin == 0) {
+        val coreItem = ea.coreItemOf(item)
+        if (coreItem.nextSymbol == 0) recognized += coreItem.nonterminal
       }
+      item = item.nextItem
     }
+    recognized
   }
-  
-  def predict_and_complete_step(bins : Bins, k : Int)  = {
-    var changed = false
-    val bin = bins(k)
-    do {
-      changed = false
-      for ((item, value) <- bin.items) {
-        val expected = expectedSymbol(item)
-        val predicted_items : MoreItems = 
-          expected match {
-            case Some(n : Nonterminal) => predict_items(n, k)
-            case _ => List()
-          }
-        val completed_items : MoreItems =
-          expected match {
-            case None =>
-              val finalvalue = grammar.finalValue(document, item.origin, k, 
-                item.nonterminal, item.ruleindex, value)
-              complete_items(k, bins(item.origin), item.nonterminal, finalvalue)
-            case _ => List()
-          }
-        changed = bin.add(predicted_items) || changed
-        changed = bin.add(completed_items) || changed
+
+  def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[Bin]), Int]  = {
+    var bins : Array[Bin] = new Array(document.size + 1)
+    bins(0) = initialBin(nonterminals)
+    val stream = new DocumentCharacterStream(document)
+    for (k <- 0 until document.size) {
+      scan(document, stream, bins, k, predictAndComplete(bins, k))
+    }
+    predictAndComplete(bins, document.size)
+    val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
+    if (recognized.isEmpty) {
+      var k = document.size
+      var foundNonemptyBin = false
+      while (k >= 0 && !foundNonemptyBin) {
+        if (bins(k) != null && bins(k).processedItems != null) 
+          foundNonemptyBin = true
+        else k -= 1
       }
-    } while (changed)
+      Right(k)
+    } else {
+      Left((recognized, bins))
+    } 
   }
-  
-  def scan_step(bins : Bins, k : Int) : Boolean = {
-    if (k >= document.size) return false
-    val nextToken = document.getToken(k)
-    val nextTerminal = nextToken.terminal
-    val nextTokenValue = grammar.valueOfToken(nextToken)
-    val bin = bins(k + 1)
-    var changed = false
-    for ((item, value) <- bins(k).items) {
-      expectedSymbol(item) match {
-        case Some(expected : TerminalLike) if expected.isLike(nextTerminal) =>
-          val nextvalue = grammar.nextValue(document, item.origin, k, k+1, 
-            item.nonterminal, item.ruleindex, item.dot, value, nextTokenValue)
-          nextvalue match {
-            case Some(nextvalue) => 
-              changed = bin.add(item.inc, nextvalue) || changed
-            case _ =>
-          }
-        case _ => None
+
+  /** Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
+    * @param startPosition the start position (inclusive)
+    * @param endPosition the end position (exclusive)
+    */
+  def constructParseTree(grammar : Grammar, document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
+    val bin = bins(endPosition)
+    var item = bin.processedItems
+    var foundItem : Item = null
+    while (item != null) {
+      val coreItem = ea.coreItemOf(item)
+      if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
+        if (foundItem != null) return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
+        foundItem = item
       }
+      item = item.nextItem
     }
-    changed    
-  }
-  
-  def collect_blackboxes(bin : ItemBin) : Set[Nonterminal] = {
-    var blackboxes : Set[Nonterminal] = Set()
-    for ((item, _) <- bin.items) {
-      expectedSymbol(item) match {
-        case Some(n : Nonterminal) if grammar.isBlackbox(n) =>
-          blackboxes += n
-        case _ =>
-      }  
+    if (foundItem == null) throw new RuntimeException("cannot construct parse tree")
+    val coreItem = ea.coreItemOf(foundItem)
+    var subtrees = new Array[ParseTree](coreItem.rhs.size)
+    var pos = startPosition
+    for (i <- 0 until subtrees.size) {
+      val symbol = coreItem.rhs(i)
+      val span = foundItem.layout(i)
+      if (symbol < 0) {
+        subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
+        pos = span.lastTokenIndex + 1
+      } else if (span != null) {
+        subtrees(i) = constructParseTree(grammar, document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
+        pos = span.lastTokenIndex + 1
+      } else
+        subtrees(i) = constructParseTree(grammar, document, bins, symbol, pos, pos) 
     }
-    blackboxes
-  }
-  
-  def blackbox_step(bins : Bins, k : Int) : (Boolean, Int) = {
-    if (!grammar.hasBlackboxes) return (false, k)
-    val bin = bins(k)
-    val blackboxes = collect_blackboxes(bin)
-    if (blackboxes.isEmpty) return (false, k)
-    val results = grammar.callBlackboxes(document, k, document.size, blackboxes)
-    if (results.isEmpty) return (false, k)
-    var largest_k = k
-    var changed = false    
-    for ((item, value) <- bin.items) {
-      expectedSymbol(item) match {
-        case Some(blackbox : Nonterminal) =>
-          results.get(blackbox) match {
-            case Some(parses) =>
-              for ((j, v) <- parses) {
-                grammar.nextValue(document, item.origin, k, j, 
-                  item.nonterminal, item.ruleindex, item.dot, value, v) match
-                {
-                  case Some(nextvalue) =>
-                    if (bins(j).add(item.inc, nextvalue)) {
-                      changed = changed || (j == k)
-                      if (j > largest_k) largest_k = j
-                    }
-                  case _ =>
-                }
-              }
-            case _ =>
-          }
-        case _ =>          
-      }
+    val ruleindex = coreItem.ruleindex
+    val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
+    val rhsIndices = grammar.rhsIndices(nonterminalSymbol, ruleindex)
+    val span_ = Span.spanOfLayout(foundItem.layout)
+    val d_ = document
+    val g_ = grammar
+    val sp_ = startPosition
+    val ep_ = endPosition
+    class Context extends ParseContext {
+      val document = d_
+      val grammar = g_
+      val rule = parserule
+      val span = span_
+      val startPosition = sp_
+      val endPosition = ep_ 
+      def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
     }
-    (changed, largest_k)
+    val value = parserule.action(new Context())
+    NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
   }
-  
-  def extend_items(bins : Bins, k : Int) : Int = {
-    var largest_k = k
-    do {
-      predict_and_complete_step(bins, k)
-      val (changed, j) = blackbox_step(bins, k)
-      if (j > largest_k) largest_k = j
-      if (!changed) {
-        if (scan_step(bins, k) && k + 1 > largest_k) largest_k = k + 1        
-        return largest_k
-      }
-    } while (true)
-    return largest_k // make your loving compiler happy
-  }
-  
-  def initialBins(nonterminals : Set[Nonterminal], k : Int) : Bins = {
-    val bins = new Bins()
-    val bin = bins(k)
-    for (nonterminal <- nonterminals) {
-      bin.add(predict_items(nonterminal, k))
+
+  def parse(grammar : Grammar, document : Document, nonterminal : Int) : Either[ParseTree, Int] = {
+    recognize(document, Set(nonterminal)) match {
+      case Left((recognized, bins)) =>
+        Left(constructParseTree(grammar, document, bins, nonterminal, 0, document.size))
+      case Right(k) => 
+        Right(k) 
     }
-    bins
-  }
-  
-  def recognize(nonterminals : Set[Nonterminal], i : Int) : (Bins, Int) = {
-    val bins = initialBins(nonterminals, i)
-    var largest_k = i
-    var k = i
-    while (k <= largest_k) {
-      val j = extend_items(bins, k)
-      if (j > largest_k) largest_k = j
-      k = k + 1
-    }
-    (bins, largest_k)
-  }
-  
-  def compute_parse_values(nonterminals : Nonterminal => Boolean, bins : Bins, i : Int, j : Int) : 
-    Map[Nonterminal, Value] = 
-  {
-    val bin = bins(j)
-    var result : Map[Nonterminal, Value] = Map()
-    for ((item, intermediateValue) <- bin.items) {
-      if (item.origin == i && nonterminals(item.nonterminal) && isCompletedItem(item)) {
-        val n = item.nonterminal
-        val value = grammar.finalValue(document, i, j, n, item.ruleindex, intermediateValue)
-        result.get(n) match {
-          case None => result += (n -> value)
-          case Some(v) => result += (n -> grammar.joinValues(document, i, j, n, v, value))
-        }
-      }
-    }
-    result
-  }
-  
-  def compute_longest_parse_values(nonterminals : Nonterminal => Boolean, bins : Bins, i : Int, j : Int) :
-    (Map[Nonterminal, Value], Int) =
-  {
-    var k = j
-    while (i <= k) {
-      val result = compute_parse_values(nonterminals, bins, i, k)
-      if (!result.isEmpty) return (result, k)
-      k = k - 1
-    }
-    return (Map(), k)
-  }
-  
-  def parse(nonterminal : Nonterminal, k : Int) : Option[(Value, Int)] = {
-    val (bins, largest_k) = recognize(Set(nonterminal), k)
-    val (result, i) = compute_longest_parse_values(n => n == nonterminal, bins, k, largest_k)
-    result.get(nonterminal) match {
-      case None => None
-      case Some(value) => Some(value, i)
-    }
-  }
-  
+  } 
+
 }
