@@ -2,7 +2,7 @@ package proofpeer.indent
 
 /** A span corresponds to the area of the document consisting of the (non-whitespace) tokens from
   * firstTokenIndex to lastTokenIndex (both indices are inclusive). It measures various aspects of that 
-  * area via its member variables. The members of Span correspond to the [[LayoutQualifier]] cases, 
+  * area via its member variables. The members of Span correspond to the [[Constraint.LayoutQualifier]] cases, 
   * except for firstTokenIndex and lastTokenIndex. 
   *
   * A span cannot represent an empty area or an area that does not begin and end with a

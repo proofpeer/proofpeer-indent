@@ -1,8 +1,8 @@
 organization := "net.proofpeer"
 
-name := "ProofPeer Indent Redesign"
+name := "ProofPeer Indent"
 
-version := "0.3"
+version := "0.4-SNAPSHOT"
 
 scalaVersion := "2.11.2"
 
