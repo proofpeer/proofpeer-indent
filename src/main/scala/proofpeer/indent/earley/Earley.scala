@@ -6,7 +6,7 @@ import proofpeer.indent.regex.DocumentCharacterStream
 
 object Earley {
 
-  final class Item(val coreItemId : Int, val coreItem : CoreItem, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item)
+  final class Item(val coreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item)
 
 }
 
@@ -86,17 +86,17 @@ final class Bin(val pool : BitmapPool) {
     } else null
   }
 
-  def addItem(coreItemId : Int, coreItem : CoreItem, origin : Int, layout : Span.Layout) {
+  def addItem(coreItemId : Int, origin : Int, layout : Span.Layout) {
     var item = bitmap(coreItemId)
     if (item == null) {
-      newItems = new Item(coreItemId, coreItem, origin, layout, null, newItems)
+      newItems = new Item(coreItemId, origin, layout, null, newItems)
       bitmap(coreItemId) = newItems
     } else if (item.origin != origin || !Span.layoutsAreEqual(item.layout, layout)) {
       var sibling = item.nextSibling
       while (sibling != null && (origin != sibling.origin || !Span.layoutsAreEqual(layout, sibling.layout)))
         sibling = sibling.nextSibling
       if (sibling == null) {
-        newItems = new Item(coreItemId, coreItem, origin, layout, item, newItems)
+        newItems = new Item(coreItemId, origin, layout, item, newItems)
         bitmap(coreItemId) = newItems
       }
     }
@@ -115,13 +115,13 @@ final class Earley(ea : EarleyAutomaton) {
   import Earley._
 
   val pool = new BitmapPool(ea.coreItems.size)
-
+  
   def initialBin(nonterminals : Set[Int]) : Bin = {
     val bin = new Bin(pool)
     for (coreItemId <- 0 until ea.coreItems.size) {
       val coreItem = ea.coreItems(coreItemId)
       if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) 
-        bin.addItem(coreItemId, coreItem, 0, null)
+        bin.addItem(coreItemId, 0, null)
     }
     bin
   }
@@ -132,27 +132,27 @@ final class Earley(ea : EarleyAutomaton) {
     var item = bin.nextItem()
     var terminals : Set[Int] = Set()
     while (item != null) {
-      val coreItem = item.coreItem
+      val coreItem = ea.coreItemOf(item)
       val nextSymbol = coreItem.nextSymbol
       if (nextSymbol < 0) /* terminal */ 
         terminals += nextSymbol
       else if (nextSymbol > 0) /* nonterminal */ {
         for (predictedItem <- coreItem.predictedCoreItems) 
-          bin.addItem(predictedItem, ea.coreItems(predictedItem), k, null)
+          bin.addItem(predictedItem, k, null)
         if (coreItem.nextSymbolIsNullable) 
-          bin.addItem(coreItem.nextCoreItem, ea.coreItems(coreItem.nextCoreItem), item.origin, Span.addToLayout(item.layout, null))
+          bin.addItem(coreItem.nextCoreItem, item.origin, Span.addToLayout(item.layout, null))
       } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
         val span = Span.spanOfLayout(item.layout)
         var originItem = bins(item.origin).processedItems
         while (originItem != null) {
-          val originCoreItem = originItem.coreItem
+          val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
             val layout = Span.addToLayout(originItem.layout, span)
             val nextCoreItemId = originCoreItem.nextCoreItem
             val nextCoreItem = ea.coreItems(nextCoreItemId)
             if (nextCoreItem.evalConstraint(layout)) 
-              bin.addItem(nextCoreItemId, nextCoreItem, originItem.origin, layout)
+              bin.addItem(nextCoreItemId, originItem.origin, layout)
           }
           originItem = originItem.nextItem
         }
@@ -189,12 +189,12 @@ final class Earley(ea : EarleyAutomaton) {
           bins(k + len) = destBin
         }
         while (item != null) {
-          val coreItem = item.coreItem
+          val coreItem = ea.coreItemOf(item)
           if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
             val layout = Span.addToLayout(item.layout, span)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
             if (nextCoreItem.evalConstraint(layout)) {
-              destBin.addItem(coreItem.nextCoreItem, nextCoreItem, item.origin, layout)
+              destBin.addItem(coreItem.nextCoreItem, item.origin, layout)
             }
           }
           item = item.nextItem
@@ -209,7 +209,7 @@ final class Earley(ea : EarleyAutomaton) {
     var item = bin.processedItems
     while (item != null) {
       if (item.origin == 0) {
-        val coreItem = item.coreItem
+        val coreItem = ea.coreItemOf(item)
         if (coreItem.nextSymbol == 0) recognized += coreItem.nonterminal
       }
       item = item.nextItem
@@ -249,7 +249,7 @@ final class Earley(ea : EarleyAutomaton) {
     var item = bin.processedItems
     var foundItem : Item = null
     while (item != null) {
-      val coreItem = item.coreItem
+      val coreItem = ea.coreItemOf(item)
       if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
         if (foundItem != null) return AmbiguousNode(nonterminal, Span.spanOfLayout(foundItem.layout))
         foundItem = item
@@ -257,7 +257,7 @@ final class Earley(ea : EarleyAutomaton) {
       item = item.nextItem
     }
     if (foundItem == null) throw new RuntimeException("cannot construct parse tree")
-    val coreItem = foundItem.coreItem
+    val coreItem = ea.coreItemOf(foundItem)
     var subtrees = new Array[ParseTree](coreItem.rhs.size)
     var pos = startPosition
     for (i <- 0 until subtrees.size) {
