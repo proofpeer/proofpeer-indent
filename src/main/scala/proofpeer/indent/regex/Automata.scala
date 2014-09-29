@@ -315,7 +315,6 @@ object DFA {
     var recognizedTokens : Set[TokenId] = null
     var len = 0
     while (state >= 0) {
-      if (dfa.finalStates.get(state).isDefined) Measuring.checkFinalState += 1
       dfa.finalStates.get(state) match {
         case Some(ids) if acceptableTokens == null || !ids.intersect(acceptableTokens).isEmpty => 
           recognizedLength = len
@@ -328,7 +327,6 @@ object DFA {
       val character = characterStream.nextCharacter
       len += 1
       if (character < 0) return (recognizedLength, recognizedTokens)
-      Measuring.move += 1
       state = dfa.move(state, character)
     }
     (recognizedLength, recognizedTokens)
