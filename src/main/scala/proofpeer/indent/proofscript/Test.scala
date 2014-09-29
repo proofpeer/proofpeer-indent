@@ -30,6 +30,8 @@ object Test {
     val ea = new EarleyAutomaton(grammar)
     val t2 = System.currentTimeMillis()
     println("Computed earley automaton in " + (t2 - t1) + " ms.")
+    println("Number of terminals: " + grammar.terminals.size)
+    ea.dfas(0).display()
     val earley = new Earley(ea)
     val PROG = ea.idOfNonterminal("Prog")
     println("PROG = " + PROG)
@@ -50,6 +52,9 @@ object Test {
     }
     val t4 = System.currentTimeMillis()
     println("parsed in " + (t4 - t3) + " ms")
+    println("number of bin additions: " + Measuring.addItem)
+    println("number of DFA moves: " + Measuring.move)
+    println("number of DFA final states encountered: " + Measuring.checkFinalState)
   }
 
 }

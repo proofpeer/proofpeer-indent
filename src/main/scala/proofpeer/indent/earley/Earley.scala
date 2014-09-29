@@ -87,6 +87,7 @@ final class Bin(val pool : BitmapPool) {
   }
 
   def addItem(coreItemId : Int, origin : Int, layout : Span.Layout) {
+    Measuring.addItem += 1
     var item = bitmap(coreItemId)
     if (item == null) {
       newItems = new Item(coreItemId, origin, layout, null, newItems)
