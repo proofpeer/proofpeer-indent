@@ -1,6 +1,7 @@
 package proofpeer.indent
 
 import proofpeer.indent.regex.RegularExpr
+import scala.language.dynamics
 
 /** IndexedSymbols are symbols that carry an optional index tag.
   * The tags can be used to distinguish otherwise equal symbols on the right hand side
@@ -21,8 +22,10 @@ sealed trait Rule {
 
 case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
 
-trait ParseContext {
-  def result(indexedSymbol : IndexedSymbol) : earley.ParseTree
+class Default[T] 
+
+trait ParseContext extends Dynamic {
+  def result(indexedSymbol : IndexedSymbol) : ParseTree
   def document : Document
   def grammar : Grammar
   def rule : ParseRule
@@ -32,13 +35,6 @@ trait ParseContext {
 
   // convencience methods
   
-  def apply[T](indexedSymbol : IndexedSymbol) : T = {
-    result(indexedSymbol) match {
-      case n : earley.NonterminalNode => n.value.asInstanceOf[T]
-      case _ => throw new RuntimeException("no value for " + indexedSymbol + " available")
-    }
-  }
-
   def text(indexedSymbol : IndexedSymbol) : String = {
     document.getText(result(indexedSymbol).span)
   }
@@ -46,6 +42,12 @@ trait ParseContext {
   def text : String = {
     document.getText(span)
   }
+
+  def span(indexedSymbol : IndexedSymbol) : Span = result(indexedSymbol).span
+
+  import GrammarConversions._
+
+  def selectDynamic[T](s : String) : T = result(s).getValue[T]
 
 }
 
@@ -86,7 +88,7 @@ class Grammar(val rules : Vector[Rule])
 {
 
     def ++ (other : Grammar) : Grammar = {
-      Grammar(rules ++ other.rules)
+      new Grammar(rules ++ other.rules)
     }
 
     private def check() : Vector[GrammarError] = {
@@ -233,7 +235,7 @@ class Grammar(val rules : Vector[Rule])
 }
 
 object Grammar {
-  def apply(rules : Vector[Rule]) : Grammar = new Grammar(rules)
+  def apply(rules : Rule*) : Grammar = new Grammar(rules.toVector)
 }
 
 object GrammarConversions {

@@ -12,7 +12,7 @@ object Syntax {
   private var scanrules : Map[String, ScanRule] = Map()
   private var parserules : Vector[ParseRule] = Vector()
 
-  def grammar : Grammar = Grammar(parserules ++ scanrules.map(p => p._2))
+  def grammar : Grammar = new Grammar(parserules ++ scanrules.map(p => p._2))
 
   def add(name : String, r : RegularExpr, prio : Option[Int] = None) {
     val scanrule = ScanRule(name, "\\root", prio, r)

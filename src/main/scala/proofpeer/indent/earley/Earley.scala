@@ -10,27 +10,6 @@ object Earley {
 
 }
 
-sealed trait ParseTree {
-  def symbol : String
-  def span : Span
-  def hasAmbiguities : Boolean
-}
-
-final case class AmbiguousNode(nonterminal : String, span : Span) extends ParseTree {
-  def symbol = nonterminal
-  def hasAmbiguities = true
-}
-
-final case class NonterminalNode(nonterminal : String, ruleindex : Int, span : Span, rhs : Vector[ParseTree], value : Any) extends ParseTree {
-  def symbol = nonterminal
-  lazy val hasAmbiguities = rhs.exists(_.hasAmbiguities)
-}
-
-final case class TerminalNode(terminal : String, span : Span) extends ParseTree {
-  def symbol = terminal
-  def hasAmbiguities = false
-}
-
 final class BitmapPool(numCoreItems : Int) {
 
   type Bitmap = Array[Earley.Item]
@@ -244,7 +223,8 @@ final class Earley(ea : EarleyAutomaton) {
     * @param startPosition the start position (inclusive)
     * @param endPosition the end position (exclusive)
     */
-  def constructParseTree(grammar : Grammar, document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+  def constructParseTree(document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    val grammar = ea.grammar
     val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
     val bin = bins(endPosition)
     var item = bin.processedItems
@@ -268,10 +248,10 @@ final class Earley(ea : EarleyAutomaton) {
         subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
         pos = span.lastTokenIndex + 1
       } else if (span != null) {
-        subtrees(i) = constructParseTree(grammar, document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
+        subtrees(i) = constructParseTree(document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
         pos = span.lastTokenIndex + 1
       } else
-        subtrees(i) = constructParseTree(grammar, document, bins, symbol, pos, pos) 
+        subtrees(i) = constructParseTree(document, bins, symbol, pos, pos) 
     }
     val ruleindex = coreItem.ruleindex
     val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
@@ -294,10 +274,11 @@ final class Earley(ea : EarleyAutomaton) {
     NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
   }
 
-  def parse(grammar : Grammar, document : Document, nonterminal : Int) : Either[ParseTree, Int] = {
+  def parse(document : Document, nonterminalSymbol : String) : Either[ParseTree, Int] = {
+    val nonterminal = ea.idOfNonterminal(nonterminalSymbol)
     recognize(document, Set(nonterminal)) match {
       case Left((recognized, bins)) =>
-        Left(constructParseTree(grammar, document, bins, nonterminal, 0, document.size))
+        Left(constructParseTree(document, bins, nonterminal, 0, document.size))
       case Right(k) => 
         Right(k) 
     }

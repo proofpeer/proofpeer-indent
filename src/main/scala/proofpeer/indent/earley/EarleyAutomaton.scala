@@ -12,7 +12,7 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var evalConstraint : Span.Layout => Boolean = layout => true
 } 
 
-final class EarleyAutomaton(grammar : Grammar) {
+final class EarleyAutomaton(val grammar : Grammar) {
 
   // terminal ids are < 0
   val (idOfTerminal, terminalOfId) = {

@@ -15,7 +15,7 @@ object Test {
     lines
   }
 
-  def main(args : Array[String]) {
+  def oldmain(args : Array[String]) {
     val grammar = Syntax.grammar
     if (!grammar.isWellformed) {
       val errors = grammar.errors
@@ -31,13 +31,11 @@ object Test {
     val t2 = System.currentTimeMillis()
     println("Computed earley automaton in " + (t2 - t1) + " ms.")
     val earley = new Earley(ea)
-    val PROG = ea.idOfNonterminal("Prog")
-    println("PROG = " + PROG)
     //val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/conversions.thy")
     val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
     val document = Document.fromString(read(f))
     val t3 = System.currentTimeMillis()
-    earley.parse(grammar, document, PROG) match {
+    earley.parse(document, "Prog") match {
       case Left(parsetree) =>
         if (parsetree.hasAmbiguities) 
           println("ambiguous parse")
