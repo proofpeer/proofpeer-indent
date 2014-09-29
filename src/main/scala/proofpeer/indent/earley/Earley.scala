@@ -14,6 +14,8 @@ case class Item(nonterminal : Nonterminal, ruleindex : Int, dot : Int, origin : 
 
 object Measurements {
 
+  var numActiveBins = 0
+  var numStraightBins = 0
 
 
 }
@@ -78,6 +80,16 @@ class Earley[Value, IntermediateValue](
         changed = add(item, value) || changed
       }
       changed
+    }
+
+    def measure : (Int, Int, Int) = {
+      val grouped = items.keys.groupBy(item => (item.nonterminal, item.ruleindex, item.dot))
+      var maxsize = 0
+      if (!grouped.isEmpty) {
+        val sizes = grouped.toList.map(t => t._2.size)
+        for (s <- sizes) if (s > maxsize) maxsize = s
+      }
+      (items.size, grouped.size, maxsize)
     }
     
   }
@@ -238,7 +250,7 @@ class Earley[Value, IntermediateValue](
         return largest_k
       }
     } while (true)
-    return largest_k // make your loving compiler happy
+    return largest_k // keep your loving compiler happy
   }
   
   def initialBins(nonterminals : Set[Nonterminal], k : Int) : Bins = {
@@ -256,6 +268,14 @@ class Earley[Value, IntermediateValue](
     var k = i
     while (k <= largest_k) {
       val j = extend_items(bins, k)
+      if (outer) {
+        val (num, grouped, max) = bins(k).measure
+        if (num > 0) Measurements.numActiveBins += 1
+        if (num > 0 && num == grouped) Measurements.numStraightBins += 1
+        if (max > 2) {
+          println("bin " + k + ": " + (num, grouped, max))
+        }
+      }
       if (j > largest_k) largest_k = j
       k = k + 1
     }
