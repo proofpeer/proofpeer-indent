@@ -164,6 +164,4 @@ final class EarleyAutomaton(grammar : Grammar) {
     nonprio ++ terminalsWithHighestPrio
   }
 
-  def coreItemOf(item : Earley.Item) : CoreItem = coreItems(item.coreItemId)
-
 }
