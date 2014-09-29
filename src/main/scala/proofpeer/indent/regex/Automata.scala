@@ -316,12 +316,17 @@ object DFA {
     var len = 0
     while (state >= 0) {
       dfa.finalStates.get(state) match {
-        case Some(ids) if acceptableTokens == null || !ids.intersect(acceptableTokens).isEmpty => 
-          recognizedLength = len
-          if (acceptableTokens == null)
+        case Some(ids) => 
+          if (acceptableTokens == null) {
+            recognizedLength = len
             recognizedTokens = ids
-          else
-            recognizedTokens = ids.intersect(acceptableTokens)
+          } else {
+            val accepted = ids.intersect(acceptableTokens)
+            if (!accepted.isEmpty) {
+              recognizedLength = len
+              recognizedTokens = accepted
+            }
+          } 
         case _ =>
       }
       val character = characterStream.nextCharacter
