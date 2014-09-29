@@ -55,6 +55,7 @@ final class EarleyAutomaton(grammar : Grammar) {
       val nonterminal = idOfNonterminal(symbol)
       for (rule <- rules) {
         val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
+        val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           val coreItem = new CoreItem(nonterminal, ruleindex, dot)
@@ -66,7 +67,7 @@ final class EarleyAutomaton(grammar : Grammar) {
           coreItem.nextCoreItem = 
             if (coreItem.nextSymbol == 0) -1 else id + 1
           def f(s : IndexedSymbol) : Option[Int] = {
-            val i = rule.rhs.indexOf(s)
+            val i = rhsIndices(s)
             if (i < dot) Some(i) else None
           }
           Constraint.evalConstraint(rule.constraint, f) match {

@@ -11,6 +11,10 @@ trait Document {
   
   def getText(position : Int, len : Int) : String
 
+  def getText(span : Span) : String = 
+    if (span == null) ""
+    else getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+
 }
 
 final class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Document {

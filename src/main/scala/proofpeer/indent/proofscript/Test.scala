@@ -37,7 +37,7 @@ object Test {
     val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
     val document = Document.fromString(read(f))
     val t3 = System.currentTimeMillis()
-    earley.parse(document, PROG) match {
+    earley.parse(grammar, document, PROG) match {
       case Left(parsetree) =>
         if (parsetree.hasAmbiguities) 
           println("ambiguous parse")

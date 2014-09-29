@@ -22,7 +22,31 @@ sealed trait Rule {
 case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
 
 trait ParseContext {
-  def apply[T](indexedSymbol : IndexedSymbol) : T
+  def result(indexedSymbol : IndexedSymbol) : earley.ParseTree
+  def document : Document
+  def grammar : Grammar
+  def rule : ParseRule
+  def span : Span // null means empty span
+  def startPosition : Int // the start position in the document (inclusive)
+  def endPosition : Int // the end position in the document (exclusive)
+
+  // convencience methods
+  
+  def apply[T](indexedSymbol : IndexedSymbol) : T = {
+    result(indexedSymbol) match {
+      case n : earley.NonterminalNode => n.value.asInstanceOf[T]
+      case _ => throw new RuntimeException("no value for " + indexedSymbol + " available")
+    }
+  }
+
+  def text(indexedSymbol : IndexedSymbol) : String = {
+    document.getText(result(indexedSymbol).span)
+  }
+
+  def text : String = {
+    document.getText(span)
+  }
+
 }
 
 case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], constraint : Constraint, 
@@ -183,6 +207,27 @@ class Grammar(val rules : Vector[Rule])
       } while (changed)
       nullable
     }
+
+    private def computeRhsIndices(nonterminal : String, ruleindex : Int) : Map[IndexedSymbol, Int] = {
+      val rule = parserules(nonterminal)(ruleindex)
+      var m : Map[IndexedSymbol, Int] = Map()
+      var i = rule.rhs.size
+      for (symbol <- rule.rhs.reverse) {
+        i -= 1
+        m += (symbol -> i)
+      }
+      m
+    }
+
+    private lazy val computedRhsIndices : Map[(String, Int), Map[IndexedSymbol, Int]] = {
+      var m : Map[(String, Int), Map[IndexedSymbol, Int]] = Map()
+      for ((nonterminal, rules) <- parserules) {
+        for (i <- 0 until rules.size) m += ((nonterminal, i) -> computeRhsIndices(nonterminal, i))
+      }
+      m
+    }
+
+    def rhsIndices(nonterminal : String, ruleindex : Int) : Map[IndexedSymbol, Int] = computedRhsIndices((nonterminal, ruleindex))
 
     def isWellformed : Boolean = errors.isEmpty
 }

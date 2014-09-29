@@ -11,22 +11,22 @@ object Earley {
 }
 
 sealed trait ParseTree {
-  def symbol : Int
+  def symbol : String
   def span : Span
   def hasAmbiguities : Boolean
 }
 
-final case class AmbiguousNode(nonterminal : Int, span : Span) extends ParseTree {
+final case class AmbiguousNode(nonterminal : String, span : Span) extends ParseTree {
   def symbol = nonterminal
   def hasAmbiguities = true
 }
 
-final case class NonterminalNode(nonterminal : Int, ruleindex : Int, span : Span, rhs : Vector[ParseTree]) extends ParseTree {
+final case class NonterminalNode(nonterminal : String, ruleindex : Int, span : Span, rhs : Vector[ParseTree], value : Any) extends ParseTree {
   def symbol = nonterminal
-  def hasAmbiguities = rhs.exists(_.hasAmbiguities)
+  lazy val hasAmbiguities = rhs.exists(_.hasAmbiguities)
 }
 
-final case class TerminalNode(terminal : Int, span : Span) extends ParseTree {
+final case class TerminalNode(terminal : String, span : Span) extends ParseTree {
   def symbol = terminal
   def hasAmbiguities = false
 }
@@ -244,14 +244,15 @@ final class Earley(ea : EarleyAutomaton) {
     * @param startPosition the start position (inclusive)
     * @param endPosition the end position (exclusive)
     */
-  def constructParseTree(document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+  def constructParseTree(grammar : Grammar, document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
     val bin = bins(endPosition)
     var item = bin.processedItems
     var foundItem : Item = null
     while (item != null) {
       val coreItem = ea.coreItemOf(item)
       if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
-        if (foundItem != null) return AmbiguousNode(nonterminal, Span.spanOfLayout(foundItem.layout))
+        if (foundItem != null) return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
         foundItem = item
       }
       item = item.nextItem
@@ -264,21 +265,39 @@ final class Earley(ea : EarleyAutomaton) {
       val symbol = coreItem.rhs(i)
       val span = foundItem.layout(i)
       if (symbol < 0) {
-        subtrees(i) = TerminalNode(symbol, span)
+        subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
         pos = span.lastTokenIndex + 1
       } else if (span != null) {
-        subtrees(i) = constructParseTree(document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
+        subtrees(i) = constructParseTree(grammar, document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
         pos = span.lastTokenIndex + 1
       } else
-        subtrees(i) = constructParseTree(document, bins, symbol, pos, pos) 
+        subtrees(i) = constructParseTree(grammar, document, bins, symbol, pos, pos) 
     }
-    NonterminalNode(nonterminal, coreItem.ruleindex, Span.spanOfLayout(foundItem.layout), subtrees.toVector)
+    val ruleindex = coreItem.ruleindex
+    val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
+    val rhsIndices = grammar.rhsIndices(nonterminalSymbol, ruleindex)
+    val span_ = Span.spanOfLayout(foundItem.layout)
+    val d_ = document
+    val g_ = grammar
+    val sp_ = startPosition
+    val ep_ = endPosition
+    class Context extends ParseContext {
+      val document = d_
+      val grammar = g_
+      val rule = parserule
+      val span = span_
+      val startPosition = sp_
+      val endPosition = ep_ 
+      def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
+    }
+    val value = parserule.action(new Context())
+    NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
   }
 
-  def parse(document : Document, nonterminal : Int) : Either[ParseTree, Int] = {
+  def parse(grammar : Grammar, document : Document, nonterminal : Int) : Either[ParseTree, Int] = {
     recognize(document, Set(nonterminal)) match {
       case Left((recognized, bins)) =>
-        Left(constructParseTree(document, bins, nonterminal, 0, document.size))
+        Left(constructParseTree(grammar, document, bins, nonterminal, 0, document.size))
       case Right(k) => 
         Right(k) 
     }
