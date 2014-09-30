@@ -22,8 +22,6 @@ sealed trait Rule {
 
 case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
 
-class Default[T] 
-
 trait ParseContext extends Dynamic {
   def result(indexedSymbol : IndexedSymbol) : ParseTree
   def document : Document
