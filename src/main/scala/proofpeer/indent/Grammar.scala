@@ -22,6 +22,16 @@ sealed trait Rule {
 
 case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
 
+/** Scala type system hack suggested by Jon Pretty, applied in ParseContext.selectDynamic. */
+trait LowPriorityDefault {
+  implicit def default[T] = new Default[T]
+}
+object Default extends LowPriorityDefault {
+  implicit val anyDefault: Default[Any] = new Default[Any]
+}
+class Default[T]
+
+
 trait ParseContext extends Dynamic {
   def result(indexedSymbol : IndexedSymbol) : ParseTree
   def document : Document
@@ -45,7 +55,7 @@ trait ParseContext extends Dynamic {
 
   import GrammarConversions._
 
-  def selectDynamic[T](s : String) : T = result(s).getValue[T]
+  def selectDynamic[T](s : String)(implicit default: Default[T]) : T = result(s).getValue[T]
 
 }
 
