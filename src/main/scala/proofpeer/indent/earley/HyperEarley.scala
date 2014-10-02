@@ -9,6 +9,8 @@ object HyperEarley {
   final class Item(val hyperCoreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, 
     var nextItem : Item, var completedCoreItems : Set[Int] = null)
 
+  var additions : Int = 0
+
 }
 
 final class HyperBitmapPool(numItems : Int) {
@@ -67,6 +69,7 @@ final class HyperBin(val pool : HyperBitmapPool) {
   }
 
   def addItem(itemId : Int, origin : Int, layout : Span.Layout) {
+    HyperEarley.additions += 1
     var item = bitmap(itemId)
     if (item == null) {
       newItems = new Item(itemId, origin, layout, null, newItems)

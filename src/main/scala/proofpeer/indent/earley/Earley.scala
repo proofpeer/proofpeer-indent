@@ -8,6 +8,8 @@ object Earley {
 
   final class Item(val coreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item)
 
+  var additions : Int = 0
+
 }
 
 final class BitmapPool(numCoreItems : Int) {
@@ -66,6 +68,7 @@ final class Bin(val pool : BitmapPool) {
   }
 
   def addItem(coreItemId : Int, origin : Int, layout : Span.Layout) {
+    additions += 1
     var item = bitmap(coreItemId)
     if (item == null) {
       newItems = new Item(coreItemId, origin, layout, null, newItems)
