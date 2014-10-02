@@ -7,7 +7,7 @@ import proofpeer.indent.regex.DocumentCharacterStream
 object HyperEarley {
 
   final class Item(val hyperCoreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, 
-    var nextItem : Item, var completedCoreItems : Set[Int] = null)
+    var nextItem : Item)
 
 }
 
