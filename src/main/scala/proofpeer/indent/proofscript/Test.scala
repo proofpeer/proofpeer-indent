@@ -36,7 +36,6 @@ object Test {
     }
     val t4 = System.currentTimeMillis()
     println("parsed in " + (t4 - t3) + " ms")
-    println("number of additions: " + Earley.additions)
   }
 
   def doHyperEarley(grammar : Grammar, document : Document) {
@@ -57,7 +56,6 @@ object Test {
     }
     val t4 = System.currentTimeMillis()
     println("parsed in " + (t4 - t3) + " ms")
-    println("number of additions: " + HyperEarley.additions)
   }
 
   def main(args : Array[String]) {
