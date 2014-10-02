@@ -10,6 +10,7 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
   var evalConstraint : Span.Layout => Boolean = layout => true
+  var unconstrained = false
 } 
 
 final class EarleyAutomaton(val grammar : Grammar) {
@@ -47,7 +48,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
     }
   }
 
-  val coreItems : Array[CoreItem] = {
+  val (coreItems : Array[CoreItem], idOfCoreItem : Map[CoreItem, Int]) = {
     var states : Map[Int, CoreItem] = Map()
     var idOfCoreItem : Map[CoreItem, Int] = Map()
     for ((symbol, rules) <- grammar.parserules) {
@@ -78,7 +79,9 @@ final class EarleyAutomaton(val grammar : Grammar) {
                   case None => true
                 }
               }
+              coreItem.unconstrained = rule.constraint == Constraint.unconstrained
             case _ =>
+              coreItem.unconstrained = true
           }
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)
@@ -103,7 +106,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
         item.predictedCoreItems = new Array(0)
       }
     }
-    coreItems
+    (coreItems, idOfCoreItem)
   }
 
   val (numScopes, dfas, scopeOfTerminal) = {

@@ -15,25 +15,13 @@ object Test {
     lines
   }
 
-  def oldmain(args : Array[String]) {
-    val grammar = Syntax.grammar
-    if (!grammar.isWellformed) {
-      val errors = grammar.errors
-      println("The ProofScript grammar contains " + errors.size + " errors: ")
-      for (i <- 1 to errors.size) {
-        println ("" + i +") " + errors(i - 1))
-      }
-      println("")
-      return
-    }
+  def doEarley(grammar : Grammar, document : Document) {
     val t1 = System.currentTimeMillis()
     val ea = new EarleyAutomaton(grammar)
     val t2 = System.currentTimeMillis()
-    println("Computed earley automaton in " + (t2 - t1) + " ms.")
+    println("Computed earley automaton in " + (t2 - t1) + " ms (it has " + ea.coreItems.size +" states)")
+    //val absea = new HyperEarleyAutomaton(ea, ea.idOfNonterminal("Prog"))
     val earley = new Earley(ea)
-    //val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/conversions.thy")
-    val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
-    val document = Document.fromString(read(f))
     val t3 = System.currentTimeMillis()
     earley.parse(document, "Prog") match {
       case Left(parsetree) =>
@@ -48,6 +36,43 @@ object Test {
     }
     val t4 = System.currentTimeMillis()
     println("parsed in " + (t4 - t3) + " ms")
+  }
+
+  def doHyperEarley(grammar : Grammar, document : Document) {
+    val t1 = System.currentTimeMillis()
+    val ea = new EarleyAutomaton(grammar)
+    val hea = new HyperEarleyAutomaton(ea, ea.idOfNonterminal("Prog"))
+    val t2 = System.currentTimeMillis()
+    println("Computed hyper earley automaton in " + (t2 - t1) + " ms (it has " + hea.hyperCoreItems.size +" states)")
+    val earley = new HyperEarley(hea)
+    val t3 = System.currentTimeMillis()
+    earley.recognize(document) match {
+      case Left(_) =>
+        println("recognized successfully")
+      case Right(k) =>
+        val (row, column, code) = document.character(k)
+        val c : Char = code.toChar
+        println("parse error at position "+k+" in row "+(row + 1)+", column "+(column + 1)+" at character code " + code + " = '" + c +"'")        
+    }
+    val t4 = System.currentTimeMillis()
+    println("parsed in " + (t4 - t3) + " ms")
+  }
+
+  def main(args : Array[String]) {
+    val grammar = Syntax.grammar
+    if (!grammar.isWellformed) {
+      val errors = grammar.errors
+      println("The ProofScript grammar contains " + errors.size + " errors: ")
+      for (i <- 1 to errors.size) {
+        println ("" + i +") " + errors(i - 1))
+      }
+      println("")
+      return
+    }
+    //val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/conversions.thy")
+    val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
+    val document = Document.fromString(read(f))
+    doEarley(grammar, document)
   }
 
 }
