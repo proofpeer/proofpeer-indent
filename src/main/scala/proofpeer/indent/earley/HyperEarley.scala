@@ -179,9 +179,9 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     } 
   }
 
-  def parsedCoreItems(bin : HyperBin, nonterminal : Int, origin : Int) : List[CoreItem] = {
+  def parsedCoreItems(bin : HyperBin, nonterminal : Int, origin : Int) : List[(Item, CoreItem)] = {
     if (bin == null) return List()
-    var coreItems : List[CoreItem] = List()
+    var items : List[(Item, CoreItem)] = List()
     var item = bin.processedItems
     while (item != null) {
       if (item.origin == origin) {
@@ -190,35 +190,51 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
         while (completedNonterminal != null && completedNonterminal.nonterminal != nonterminal)
           completedNonterminal = completedNonterminal.next
         if (completedNonterminal != null) {
-          if (completedNonterminal.unconstrained)
-            coreItems ++= completedNonterminal.coreItems
-          else 
-            coreItems ++= completedNonterminal.coreItems.filter(c => c.evalConstraint(item.layout))
+          val cs = 
+            if (completedNonterminal.unconstrained)
+              completedNonterminal.coreItems
+            else 
+              completedNonterminal.coreItems.filter(c => c.evalConstraint(item.layout))
+          items ++= cs.map(x => (item, x))
         }
       }
       item = item.nextItem
     }
-    coreItems
+    items
   }
 
-  def recognize(document : Document) : Either[Array[HyperBin], Int]  = {
+  def recognizedNonterminals(bin : HyperBin) : Set[Int] = {
+    if (bin == null) return Set()
+    var nonterminals : Set[Int] = Set()
+    var item = bin.processedItems
+    while (item != null) {
+      if (item.origin == 0) {
+        val hyperCoreItem = hea.hyperCoreItems(item.hyperCoreItemId)
+        var completedNonterminal = hyperCoreItem.completedNonterminals
+        while (completedNonterminal != null) {
+          if (completedNonterminal.unconstrained ||
+            completedNonterminal.coreItems.exists(c => c.evalConstraint(item.layout)))
+          {
+            nonterminals += completedNonterminal.nonterminal 
+          }
+          completedNonterminal = completedNonterminal.next
+        }
+      }
+      item = item.nextItem
+    }
+    nonterminals    
+  }
+
+  def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[HyperBin]), Int]  = {
     var bins : Array[HyperBin] = new Array(document.size + 1)
     bins(0) = initialBin
     val stream = new DocumentCharacterStream(document)
     for (k <- 0 until document.size) {
       scan(document, stream, bins, k, predictAndComplete(bins, k))
-      //if (bins(k) != null && bins(k).size > 0) println("size of bin "+k+" = "+bins(k).size)
     }
     predictAndComplete(bins, document.size)
-/*    println("number of constraint checks: " + constraintChecks)
-    println("number of individual constraint checks: " + individualConstraintChecks)
-    println("number of necessary individual constraint checks: " + necessaryIndividualConstraintChecks)
-    println("number of item iterations: " + itemIterations)
-    println("number of dfa runs: " + dfaruns)
-    println("number of times terminals were found: " + terminalsFound)
-    println("total number of terminals found: " + numTerminalsFound)*/
-    val coreItems = parsedCoreItems(bins(document.size), hea.startNonterminal, 0)
-    if (coreItems.isEmpty) {
+    val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
+    if (recognized.isEmpty) {
       var k = document.size
       var foundNonemptyBin = false
       while (k >= 0 && !foundNonemptyBin) {
@@ -228,38 +244,36 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
       }
       Right(k)
     } else {
-      Left(bins)
+      Left((recognized, bins))
     } 
   }
 
-  /*
-    * Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
+  /** Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
     * @param startPosition the start position (inclusive)
     * @param endPosition the end position (exclusive)
-    
-  def constructParseTree(document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
-    val grammar = ea.grammar
-    val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
+    */    
+  def constructParseTree(document : Document, bins : Array[HyperBin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    val grammar = hea.ea.grammar
+    val nonterminalSymbol = hea.ea.nonterminalOfId(nonterminal)
     val bin = bins(endPosition)
-    var item = bin.processedItems
+    val items = parsedCoreItems(bin, nonterminal, startPosition)
     var foundItem : Item = null
-    while (item != null) {
-      val coreItem = ea.coreItemOf(item)
-      if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
-        if (foundItem != null) return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
-        foundItem = item
-      }
-      item = item.nextItem
+    var foundCoreItem : CoreItem = null
+    for ((item, coreItem) <- items) {
+      if (foundItem != null && (coreItem.ruleindex != foundCoreItem.ruleindex || !Span.layoutsAreEqual(foundItem.layout, item.layout))) 
+        return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
+      foundItem = item
+      foundCoreItem = coreItem
     }
     if (foundItem == null) throw new RuntimeException("cannot construct parse tree")
-    val coreItem = ea.coreItemOf(foundItem)
+    val coreItem = foundCoreItem
     var subtrees = new Array[ParseTree](coreItem.rhs.size)
     var pos = startPosition
     for (i <- 0 until subtrees.size) {
       val symbol = coreItem.rhs(i)
       val span = foundItem.layout(i)
       if (symbol < 0) {
-        subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
+        subtrees(i) = TerminalNode(hea.ea.terminalOfId(symbol), span)
         pos = span.lastTokenIndex + 1
       } else if (span != null) {
         subtrees(i) = constructParseTree(document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
@@ -289,13 +303,13 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
   }
 
   def parse(document : Document, nonterminalSymbol : String) : Either[ParseTree, Int] = {
-    val nonterminal = ea.idOfNonterminal(nonterminalSymbol)
+    val nonterminal = hea.ea.idOfNonterminal(nonterminalSymbol)
     recognize(document, Set(nonterminal)) match {
       case Left((recognized, bins)) =>
         Left(constructParseTree(document, bins, nonterminal, 0, document.size))
       case Right(k) => 
         Right(k) 
     }
-  } */
+  } 
 
 }

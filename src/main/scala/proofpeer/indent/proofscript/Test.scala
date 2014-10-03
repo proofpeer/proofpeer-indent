@@ -41,14 +41,17 @@ object Test {
   def doHyperEarley(grammar : Grammar, document : Document) {
     val t1 = System.currentTimeMillis()
     val ea = new EarleyAutomaton(grammar)
-    val hea = new HyperEarleyAutomaton(ea, ea.idOfNonterminal("Prog"))
+    val hea = new HyperEarleyAutomaton(ea)
     val t2 = System.currentTimeMillis()
     println("Computed hyper earley automaton in " + (t2 - t1) + " ms (it has " + hea.hyperCoreItems.size +" states)")
     val earley = new HyperEarley(hea)
     val t3 = System.currentTimeMillis()
-    earley.recognize(document) match {
-      case Left(_) =>
-        println("recognized successfully")
+    earley.parse(document, "Prog") match {
+      case Left(parsetree) =>
+        if (parsetree.hasAmbiguities) 
+          println("ambiguous parse")
+        else
+          println("parsed successfully")
       case Right(k) =>
         val (row, column, code) = document.character(k)
         val c : Char = code.toChar

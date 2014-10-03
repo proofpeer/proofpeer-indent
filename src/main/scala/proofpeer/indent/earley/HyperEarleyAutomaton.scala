@@ -95,7 +95,7 @@ final case class HyperCoreItem(val coreItemIds : Set[Int]) {
   var completedNonterminals : CompletedNonterminal = null
 } 
 
-final class HyperEarleyAutomaton(val ea : EarleyAutomaton, val startNonterminal : Int) {
+final class HyperEarleyAutomaton(val ea : EarleyAutomaton) {
   import HyperEarleyAutomaton._
 
   def closure(_items : Set[Item]) : Set[Item] = {
