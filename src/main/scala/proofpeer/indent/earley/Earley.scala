@@ -202,7 +202,6 @@ final class Earley(ea : EarleyAutomaton) {
     val stream = new DocumentCharacterStream(document)
     for (k <- 0 until document.size) {
       scan(document, stream, bins, k, predictAndComplete(bins, k))
-      //if (bins(k) != null && bins(k).size > 0) println("size of bin "+k+" = "+bins(k).size)
     }
     predictAndComplete(bins, document.size)
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
