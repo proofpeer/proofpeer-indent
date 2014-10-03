@@ -33,15 +33,6 @@ object HyperEarleyAutomaton {
 
   type TransitionAction = (HyperBin, Int /* Origin */, Int /* Current */, Span.Layout) => Unit
 
-  /*def simpleTransitionAction(targets : List[(Int, Bin, Layout)]) : TransitionAction = {
-    def add(bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) {
-      for ((itemId, b, l) <- targets) {
-        bin.addItem(itemId, b.select(origin, current), l.realize(layout))
-      }
-    }
-    add _
-  }*/
-
   def makeTransitionAction(itemId : Int, b : Bin, l : Layout) : TransitionAction = {
     (b, l) match {
       case (B, L) =>
@@ -93,17 +84,15 @@ object HyperEarleyAutomaton {
 
 }
 
-
-
-/*final class CompletedNonterminal(val nonterminal : Int, val evalConstraint : Span.Layout => Boolean,
-  val coreItems : Vector[CoreItem], val next : CompletedNonterminal)*/
+final class CompletedNonterminal(val nonterminal : Int, val unconstrained : Boolean, 
+  val coreItems : Vector[CoreItem], val next : CompletedNonterminal)
 
 final case class HyperCoreItem(val coreItemIds : Set[Int]) {
   import HyperEarleyAutomaton._
   var terminals : Set[Int] = null
   var terminalTransitions : Array[TransitionAction] = null //Int, List[(Int, Bin, Layout)]] = null
   var nonterminalTransitions : Array[TransitionAction] = null //Map[Int, List[(Int, Bin, Layout)]] = null
-  var completedNonterminals : Map[Int, (Boolean, Vector[CoreItem])] = null
+  var completedNonterminals : CompletedNonterminal = null
 } 
 
 final class HyperEarleyAutomaton(val ea : EarleyAutomaton, val startNonterminal : Int) {
@@ -140,10 +129,11 @@ final class HyperEarleyAutomaton(val ea : EarleyAutomaton, val startNonterminal 
   }
 
   def startItems : Set[Item] = {
-    val n = ea.nonterminalOfId(startNonterminal)
+    //val n = ea.nonterminalOfId(startNonterminal)
     val items = 
-      for (i <- 0 until ea.grammar.parserules(n).size) 
-        yield Item(ea.idOfCoreItem(CoreItem(startNonterminal, i, 0)), CURRENT, ZERO)
+      for (nonterminal <- 1 to ea.nonterminalOfId.size; 
+        i <- 0 until ea.grammar.parserules(ea.nonterminalOfId(nonterminal)).size) 
+        yield Item(ea.idOfCoreItem(CoreItem(nonterminal, i, 0)), CURRENT, ZERO)
     items.toSet
   }
 
@@ -233,17 +223,20 @@ final class HyperEarleyAutomaton(val ea : EarleyAutomaton, val startNonterminal 
           case Some(l) => item.nonterminalTransitions(n - 1) = makeTransitionAction(l)
         }
       }
-      item.completedNonterminals = Map()
+      var completedNonterminals : Map[Int, (Boolean, Vector[CoreItem])] = Map()
       for (coreItemId <- coreItemIds) {
         val coreItem = ea.coreItems(coreItemId)
         if (coreItem.nextSymbol == 0) {
-          item.completedNonterminals.get(coreItem.nonterminal) match {
+          completedNonterminals.get(coreItem.nonterminal) match {
             case None =>
-              item.completedNonterminals += (coreItem.nonterminal -> (coreItem.unconstrained, Vector(coreItem)))
+              completedNonterminals += (coreItem.nonterminal -> (coreItem.unconstrained, Vector(coreItem)))
             case Some((unconstrained, coreItems)) =>
-              item.completedNonterminals += (coreItem.nonterminal -> (coreItem.unconstrained && unconstrained, coreItems :+ coreItem))
+              completedNonterminals += (coreItem.nonterminal -> (coreItem.unconstrained && unconstrained, coreItems :+ coreItem))
           }
         }
+      }
+      for ((nonterminal, (unconstrained, coreItems)) <- completedNonterminals) {
+        item.completedNonterminals = new CompletedNonterminal(nonterminal, unconstrained, coreItems, item.completedNonterminals)
       }
       hyperCoreItems(stateId) = item
     }

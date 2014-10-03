@@ -9,15 +9,6 @@ object HyperEarley {
   final class Item(val hyperCoreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, 
     var nextItem : Item)
 
-  var constraintChecks : Int = 0
-  var individualConstraintChecks : Int = 0
-  var necessaryIndividualConstraintChecks : Int = 0
-  var itemIterations : Int = 0
-  var dfaruns : Int = 0
-  var terminalsFound : Int = 0
-  var numTerminalsFound : Int = 0
-
-
 }
 
 final class HyperBitmapPool(numItems : Int) {
@@ -113,28 +104,22 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     bin
   }
 
-  def predictAndComplete(bins : Array[HyperBin], k : Int) : Set[Int] = {
+  def predictAndComplete(bins : Array[HyperBin], k : Int) : scala.collection.mutable.Set[Int] = {
     val bin = bins(k)
     if (bin == null) return null
     var item = bin.nextItem()
-    var terminals : Set[Int] = Set()
+    var terminals : scala.collection.mutable.Set[Int] = scala.collection.mutable.Set()
     while (item != null) {
       val hyperCoreItem = hea.hyperCoreItems(item.hyperCoreItemId)
-      itemIterations += 1
       terminals ++= hyperCoreItem.terminals
-      if (hyperCoreItem.terminals.size > 0) {
-        terminalsFound += 1
-        numTerminalsFound += hyperCoreItem.terminals.size
-      }
-      if (!hyperCoreItem.completedNonterminals.isEmpty) {
-            constraintChecks += 1
+      if (hyperCoreItem.completedNonterminals != null) {
         val span = Span.spanOfLayout(item.layout)
         val parentItem = bins(item.origin).processedItems
-        for ((nonterminal, (unconstrained, coreItems)) <- hyperCoreItem.completedNonterminals) {
-          individualConstraintChecks += 1
-          if (unconstrained || coreItems.exists(c => c.evalConstraint(item.layout))) {
-            necessaryIndividualConstraintChecks += 1
+        var completedNonterminal = hyperCoreItem.completedNonterminals
+        do {
+          if (completedNonterminal.unconstrained || completedNonterminal.coreItems.exists(c => c.evalConstraint(item.layout))) {
             var originItem = parentItem
+            val nonterminal = completedNonterminal.nonterminal
             while (originItem != null) {
               val originHyperCoreItem = hea.hyperCoreItems(originItem.hyperCoreItemId)
               val action = originHyperCoreItem.nonterminalTransitions(nonterminal - 1)
@@ -145,7 +130,8 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
               originItem = originItem.nextItem
             }
           } 
-        }        
+          completedNonterminal = completedNonterminal.next
+        } while (completedNonterminal != null)
       }
       item = bin.nextItem()
     }    
@@ -153,7 +139,7 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     terminals 
   }
 
-  def scan(document : Document, stream : DocumentCharacterStream, bins : Array[HyperBin], k : Int, terminals : Set[Int]) {
+  def scan(document : Document, stream : DocumentCharacterStream, bins : Array[HyperBin], k : Int, terminals : scala.collection.mutable.Set[Int]) {
     if (terminals == null || terminals.isEmpty) return
     var scopes : Map[Int, Set[Int]] = Map()
     for (terminal <- terminals) {
@@ -168,7 +154,6 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     for ((scope, terminals) <- scopes) {
       val dfa = hea.ea.dfas(scope)
       stream.setPosition(k)
-      dfaruns += 1
       val (len, _recognizedTerminals) = DFA.run(dfa, stream, terminals)
       val recognizedTerminals = hea.ea.prioritizeTerminals(_recognizedTerminals)
       if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
@@ -201,12 +186,14 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     while (item != null) {
       if (item.origin == origin) {
         val hyperCoreItem = hea.hyperCoreItems(item.hyperCoreItemId)
-        hyperCoreItem.completedNonterminals.get(nonterminal) match {
-          case None =>
-          case Some((false, cis)) => 
-            coreItems ++= cis.filter(c => c.evalConstraint(item.layout))  
-          case Some((true, cis)) =>
-            coreItems ++= cis         
+        var completedNonterminal = hyperCoreItem.completedNonterminals
+        while (completedNonterminal != null && completedNonterminal.nonterminal != nonterminal)
+          completedNonterminal = completedNonterminal.next
+        if (completedNonterminal != null) {
+          if (completedNonterminal.unconstrained)
+            coreItems ++= completedNonterminal.coreItems
+          else 
+            coreItems ++= completedNonterminal.coreItems.filter(c => c.evalConstraint(item.layout))
         }
       }
       item = item.nextItem
@@ -223,13 +210,13 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
       //if (bins(k) != null && bins(k).size > 0) println("size of bin "+k+" = "+bins(k).size)
     }
     predictAndComplete(bins, document.size)
-    println("number of constraint checks: " + constraintChecks)
+/*    println("number of constraint checks: " + constraintChecks)
     println("number of individual constraint checks: " + individualConstraintChecks)
     println("number of necessary individual constraint checks: " + necessaryIndividualConstraintChecks)
     println("number of item iterations: " + itemIterations)
     println("number of dfa runs: " + dfaruns)
     println("number of times terminals were found: " + terminalsFound)
-    println("total number of terminals found: " + numTerminalsFound)
+    println("total number of terminals found: " + numTerminalsFound)*/
     val coreItems = parsedCoreItems(bins(document.size), hea.startNonterminal, 0)
     if (coreItems.isEmpty) {
       var k = document.size
