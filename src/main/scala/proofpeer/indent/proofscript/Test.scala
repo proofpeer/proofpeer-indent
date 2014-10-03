@@ -72,7 +72,7 @@ object Test {
     //val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/conversions.thy")
     val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
     val document = Document.fromString(read(f))
-    doEarley(grammar, document)
+    doHyperEarley(grammar, document)
   }
 
 }

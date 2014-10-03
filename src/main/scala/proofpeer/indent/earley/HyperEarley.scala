@@ -9,6 +9,15 @@ object HyperEarley {
   final class Item(val hyperCoreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, 
     var nextItem : Item)
 
+  var constraintChecks : Int = 0
+  var individualConstraintChecks : Int = 0
+  var necessaryIndividualConstraintChecks : Int = 0
+  var itemIterations : Int = 0
+  var dfaruns : Int = 0
+  var terminalsFound : Int = 0
+  var numTerminalsFound : Int = 0
+
+
 }
 
 final class HyperBitmapPool(numItems : Int) {
@@ -111,23 +120,27 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     var terminals : Set[Int] = Set()
     while (item != null) {
       val hyperCoreItem = hea.hyperCoreItems(item.hyperCoreItemId)
+      itemIterations += 1
       terminals ++= hyperCoreItem.terminals
+      if (hyperCoreItem.terminals.size > 0) {
+        terminalsFound += 1
+        numTerminalsFound += hyperCoreItem.terminals.size
+      }
       if (!hyperCoreItem.completedNonterminals.isEmpty) {
+            constraintChecks += 1
         val span = Span.spanOfLayout(item.layout)
         val parentItem = bins(item.origin).processedItems
         for ((nonterminal, (unconstrained, coreItems)) <- hyperCoreItem.completedNonterminals) {
+          individualConstraintChecks += 1
           if (unconstrained || coreItems.exists(c => c.evalConstraint(item.layout))) {
+            necessaryIndividualConstraintChecks += 1
             var originItem = parentItem
             while (originItem != null) {
               val originHyperCoreItem = hea.hyperCoreItems(originItem.hyperCoreItemId)
-              originHyperCoreItem.nonterminalTransitions.get(nonterminal) match {
-                case None =>
-                case Some(transitions) =>
-                  val layout = Span.addToLayout(originItem.layout, span)
-                  for ((targetId, b, l) <- transitions) {
-                    val origin = b.select(originItem.origin, k)
-                    bin.addItem(targetId, origin, l.realize(layout))
-                  }
+              val action = originHyperCoreItem.nonterminalTransitions(nonterminal - 1)
+              if (action != null) {
+                val layout = Span.addToLayout(originItem.layout, span)
+                action(bin, originItem.origin, k, layout)
               }
               originItem = originItem.nextItem
             }
@@ -155,6 +168,7 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     for ((scope, terminals) <- scopes) {
       val dfa = hea.ea.dfas(scope)
       stream.setPosition(k)
+      dfaruns += 1
       val (len, _recognizedTerminals) = DFA.run(dfa, stream, terminals)
       val recognizedTerminals = hea.ea.prioritizeTerminals(_recognizedTerminals)
       if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
@@ -170,10 +184,8 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
           for (terminal <- hyperCoreItem.terminals) {
             if (recognizedTerminals.contains(terminal)) {
               val layout = Span.addToLayout(item.layout, span)
-              for ((targetId, b, l) <- hyperCoreItem.terminalTransitions(terminal)) {
-                val origin = b.select(item.origin, k + len)
-                destBin.addItem(targetId, origin, l.realize(layout))
-              }
+              val action = hyperCoreItem.terminalTransitions(- terminal - 1)
+              action(destBin, item.origin, k + len, layout)
             }
           }
           item = item.nextItem
@@ -208,8 +220,16 @@ final class HyperEarley(hea : HyperEarleyAutomaton) {
     val stream = new DocumentCharacterStream(document)
     for (k <- 0 until document.size) {
       scan(document, stream, bins, k, predictAndComplete(bins, k))
+      //if (bins(k) != null && bins(k).size > 0) println("size of bin "+k+" = "+bins(k).size)
     }
     predictAndComplete(bins, document.size)
+    println("number of constraint checks: " + constraintChecks)
+    println("number of individual constraint checks: " + individualConstraintChecks)
+    println("number of necessary individual constraint checks: " + necessaryIndividualConstraintChecks)
+    println("number of item iterations: " + itemIterations)
+    println("number of dfa runs: " + dfaruns)
+    println("number of times terminals were found: " + terminalsFound)
+    println("total number of terminals found: " + numTerminalsFound)
     val coreItems = parsedCoreItems(bins(document.size), hea.startNonterminal, 0)
     if (coreItems.isEmpty) {
       var k = document.size

@@ -31,13 +31,78 @@ object HyperEarleyAutomaton {
 
   final case class Item(val coreItemId : Int, val origin : Bin, val layout : Layout)
 
+  type TransitionAction = (HyperBin, Int /* Origin */, Int /* Current */, Span.Layout) => Unit
+
+  /*def simpleTransitionAction(targets : List[(Int, Bin, Layout)]) : TransitionAction = {
+    def add(bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) {
+      for ((itemId, b, l) <- targets) {
+        bin.addItem(itemId, b.select(origin, current), l.realize(layout))
+      }
+    }
+    add _
+  }*/
+
+  def makeTransitionAction(itemId : Int, b : Bin, l : Layout) : TransitionAction = {
+    (b, l) match {
+      case (B, L) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, origin, layout)
+        }
+      case (B, PlusEpsilon(L)) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, origin, layout :+ null)
+        }                    
+      case (B, PlusEpsilon(PlusEpsilon(L))) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, origin, ((layout :+ null) :+ null))
+        }                    
+      case (CURRENT, ZERO) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, current, null)
+        }
+      case (CURRENT, PlusEpsilon(ZERO)) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, current, Vector(null))
+        }                    
+      case (CURRENT, PlusEpsilon(PlusEpsilon(ZERO))) =>
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, current, Vector(null, null))
+        }                    
+      case _ => 
+        (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          bin.addItem(itemId, b.select(origin, current), l.realize(layout))
+        }
+    }
+  }
+
+  def makeTransitionAction(targets : List[(Int, Bin, Layout)]) : TransitionAction = {
+    var action : TransitionAction = null 
+    for ((itemId, b, l) <- targets) {
+      val a = makeTransitionAction(itemId, b, l)
+      if (action == null) action = a
+      else {
+        val old = action
+        action = (bin : HyperBin, origin : Int, current : Int, layout : Span.Layout) => { 
+          old(bin, origin, current, layout);
+          a(bin, origin, current, layout)
+        }
+      }
+    }
+    action
+  }
+
 }
+
+
+
+/*final class CompletedNonterminal(val nonterminal : Int, val evalConstraint : Span.Layout => Boolean,
+  val coreItems : Vector[CoreItem], val next : CompletedNonterminal)*/
 
 final case class HyperCoreItem(val coreItemIds : Set[Int]) {
   import HyperEarleyAutomaton._
   var terminals : Set[Int] = null
-  var terminalTransitions : Map[Int, List[(Int, Bin, Layout)]] = null
-  var nonterminalTransitions : Map[Int, List[(Int, Bin, Layout)]] = null
+  var terminalTransitions : Array[TransitionAction] = null //Int, List[(Int, Bin, Layout)]] = null
+  var nonterminalTransitions : Array[TransitionAction] = null //Map[Int, List[(Int, Bin, Layout)]] = null
   var completedNonterminals : Map[Int, (Boolean, Vector[CoreItem])] = null
 } 
 
@@ -138,19 +203,35 @@ final class HyperEarleyAutomaton(val ea : EarleyAutomaton, val startNonterminal 
 
   val (hyperCoreItems : Array[HyperCoreItem]) = {
     computeAutomaton()
+    val numTerminals = ea.idOfTerminal.size
+    val numNonterminals = ea.idOfNonterminal.size
     val hyperCoreItems : Array[HyperCoreItem] = new Array(states.size)
     for ((coreItemIds, stateId) <- states) {
       val item = new HyperCoreItem(coreItemIds)
       item.terminals = Set()
-      item.terminalTransitions = Map()
-      item.nonterminalTransitions = Map()
+      var terminalTransitions : Map[Int, List[(Int, Bin, Layout)]] = Map()
+      var nonterminalTransitions : Map[Int, List[(Int, Bin, Layout)]] = Map()
       for ((symbolId, targets) <- transitions(stateId)) {
         if (symbolId < 0) {
           item.terminals += symbolId
-          item.terminalTransitions += (symbolId -> targets)
+          terminalTransitions += (symbolId -> targets)
         } else {
-          item.nonterminalTransitions += (symbolId -> targets)
+          nonterminalTransitions += (symbolId -> targets)
         } 
+      }
+      item.terminalTransitions = new Array(numTerminals)
+      for (t <- (-numTerminals) to -1) {
+        terminalTransitions.get(t) match {
+          case None =>
+          case Some(l) => item.terminalTransitions(-t - 1) = makeTransitionAction(l)
+        }
+      }
+      item.nonterminalTransitions = new Array(numNonterminals)
+      for (n <- 1 to numNonterminals) {
+        nonterminalTransitions.get(n) match {
+          case None =>
+          case Some(l) => item.nonterminalTransitions(n - 1) = makeTransitionAction(l)
+        }
       }
       item.completedNonterminals = Map()
       for (coreItemId <- coreItemIds) {
