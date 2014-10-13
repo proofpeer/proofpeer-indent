@@ -72,10 +72,11 @@ object Test {
       println("")
       return
     }
-    //val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/conversions.thy")
-    val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
+    val f = new File("/Users/stevenobua/myrepos/proofpeer-proofscript/scripts/bootstrap/redundancies.thy")
+    //val f = new File("/Users/stevenobua/myrepos/proofpeer-hollight/proofscript/Lib.thy")
     val document = Document.fromString(read(f))
-    doHyperEarley(grammar, document)
+    println("size of document: " + document.size)
+    doEarley(grammar, document)
   }
 
 }

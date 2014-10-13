@@ -39,7 +39,7 @@ final class Bin(val pool : BitmapPool) {
 
   var processedItems : Item = null
 
-  private var newItems : Item = null 
+  var newItems : Item = null 
 
   private var bitmap = pool.allocate()
 
@@ -204,6 +204,16 @@ final class Earley(ea : EarleyAutomaton) {
       scan(document, stream, bins, k, predictAndComplete(bins, k))
     }
     predictAndComplete(bins, document.size)
+    for (k <- 0 until document.size) {
+      val s = if (bins(k) != null) bins(k).size else 0
+      if (s > 150) {
+        val p = if (k < document.size) k else document.size - 1
+        var (row, col, code) = document.character(p)
+        row += 1
+        col += 1
+        val ch = code.toChar
+      }
+    }
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
       var k = document.size
