@@ -2,7 +2,6 @@ package proofpeer.indent.regex
 
 /** Conversion from regular expressions to NFAs, and from NFAs to DFAs. */
 
-import RegularExpr._
 import proofpeer.general.MapUtils
 
 object NFA {

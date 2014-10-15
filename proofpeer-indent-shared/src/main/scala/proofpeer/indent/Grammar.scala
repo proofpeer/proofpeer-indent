@@ -43,8 +43,6 @@ trait ParseContext extends Dynamic {
 
   def span(indexedSymbol : IndexedSymbol) : Span = result(indexedSymbol).span
 
-  import GrammarConversions._
-
   def selectDynamic[T](s : String) : T = result(s).getValue[T]
 
 }
@@ -116,7 +114,7 @@ class Grammar(val rules : Vector[Rule])
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => scanSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
-            if (proofpeer.indent.regex.Utils.matchesEmpty(rule.regex))
+            if (proofpeer.indent.regex.matchesEmpty(rule.regex))
               errors :+= ScanruleMatchesEmpty(rule.symbol, ruleindex)
         }
         ruleindex += 1
@@ -234,31 +232,5 @@ class Grammar(val rules : Vector[Rule])
 
 object Grammar {
   def apply(rules : Rule*) : Grammar = new Grammar(rules.toVector)
-}
-
-object GrammarConversions {
-
-  import scala.language.implicitConversions
-  import proofpeer.general.StringUtils._
-
-  implicit def name2IndexedSymbol(name: String): IndexedSymbol = {
-    val u = name.indexOf("_")
-    if (u >= 0) {
-      val left = name.substring(0, u)
-      val right = name.substring(u + 1)
-      if (right == "" || !right.forall(isASCIIDigit(_)))
-        throw new RuntimeException("Cannot convert name '" + name + "' to IndexedSymbol")
-      IndexedSymbol(left, Some(right))
-    } else 
-      IndexedSymbol(name, None)
-  }
-
-  def string2rhs(s : String) : Vector[IndexedSymbol] = {
-    if (s.trim().isEmpty())
-      Vector()
-    else
-      split_nonempty(s, " ").map(name2IndexedSymbol(_)).toVector
-  }  
-
 }
 

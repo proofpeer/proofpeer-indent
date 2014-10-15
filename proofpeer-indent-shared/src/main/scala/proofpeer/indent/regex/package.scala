@@ -1,10 +1,10 @@
-package proofpeer.indent.regex
+package proofpeer.indent
 
-/** The type of regular expressions. */
-sealed trait RegularExpr
+package object regex {
 
-object RegularExpr {
-
+  /** The type of regular expressions. */
+  sealed trait RegularExpr
+  
   /** This matches nothing. */
   case object NOTHING extends RegularExpr
 
@@ -29,12 +29,6 @@ object RegularExpr {
   /** expr+ */
   case class REPEAT1(expr : RegularExpr) extends RegularExpr
   
-}
-
-object Utils {
-
-  import RegularExpr._
-
   def chars(c1 : Char, c2 : Char) : RegularExpr = CHAR(Range(c1, c2))
 
   def chars(c1 : Int, c2 : Int) : RegularExpr = CHAR(Range(c1, c2))
