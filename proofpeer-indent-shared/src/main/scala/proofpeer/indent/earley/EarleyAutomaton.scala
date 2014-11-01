@@ -10,7 +10,6 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
   var evalConstraint : Span.Layout => Boolean = layout => true
-  var unconstrained = false
 } 
 
 final class EarleyAutomaton(val grammar : Grammar) {
@@ -79,9 +78,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
                   case None => true
                 }
               }
-              coreItem.unconstrained = rule.constraint == Constraint.unconstrained
             case _ =>
-              coreItem.unconstrained = true
           }
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)

@@ -118,8 +118,13 @@ final class Earley(ea : EarleyAutomaton) {
       else if (nextSymbol > 0) /* nonterminal */ {
         for (predictedItem <- coreItem.predictedCoreItems) 
           bin.addItem(predictedItem, k, null)
-        if (coreItem.nextSymbolIsNullable) 
-          bin.addItem(coreItem.nextCoreItem, item.origin, Span.addToLayout(item.layout, null))
+        if (coreItem.nextSymbolIsNullable) {
+          val layout = Span.addToLayout(item.layout, null)
+          val nextCoreItemId = coreItem.nextCoreItem
+          val nextCoreItem = ea.coreItems(nextCoreItemId)
+          if (nextCoreItem.evalConstraint(layout))
+            bin.addItem(nextCoreItemId, item.origin, Span.addToLayout(item.layout, null))
+        }
       } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
         val span = Span.spanOfLayout(item.layout)

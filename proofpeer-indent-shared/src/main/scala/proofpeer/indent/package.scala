@@ -24,7 +24,7 @@ package object indent {
       split_nonempty(s, " ").map(name2IndexedSymbol(_)).toVector
   }
 
-  final class Parser[T](grammar : Grammar, nonterminal : String, printErrors : Boolean) {
+  final class Parser(grammar : Grammar, printErrors : Boolean) {
     if (!grammar.isWellformed) {
       if (printErrors) {
         val errors = grammar.errors
@@ -40,7 +40,7 @@ package object indent {
     val earleyAutomaton = new earley.EarleyAutomaton(grammar)
     val earleyParser = new earley.Earley(earleyAutomaton)
     
-    def parse(text : String) : Option[T] = {
+    def parse[T](nonterminal : String, text : String) : Option[T] = {
       earleyParser.parse(Document.fromString(text), nonterminal) match {
         case Left(parsetree) =>
           if (parsetree.hasAmbiguities) None else Some(parsetree.getValue[T])
@@ -51,8 +51,8 @@ package object indent {
   }
 
   object Parser {
-    def apply[T](grammar : Grammar, nonterminal : String, printErrors : Boolean = true) : Parser[T] = {
-      new Parser[T](grammar, nonterminal, printErrors)
+    def apply(grammar : Grammar, printErrors : Boolean = true) : Parser = {
+      new Parser(grammar, printErrors)
     }
   }
 

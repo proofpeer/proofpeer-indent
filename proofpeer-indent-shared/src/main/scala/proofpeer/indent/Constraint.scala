@@ -43,6 +43,8 @@ object Constraint {
   final case class Eq(left : LayoutEntity, right : LayoutEntity, delta : Int) 
     extends Constraint
 
+  final case class NullSpan(symbol : IndexedSymbol) extends Constraint
+
   /** Denotes integer typed properties of the geometry of s */
   sealed abstract class LayoutQualifier {
     def apply(indexedSymbol : IndexedSymbol) : LayoutEntity = (this, indexedSymbol)
@@ -74,7 +76,7 @@ object Constraint {
 
   /** B starts in the same line that A ends in. */
   def SameLine(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
-    and(Eq(LastRow(A), FirstRow(B), 0))
+    Eq(LastRow(A), FirstRow(B), 0)
     
   /** A consists of a single line only. */
   def Line(A : IndexedSymbol) : Constraint  = 
@@ -87,6 +89,16 @@ object Constraint {
   /** B follows A without any whitespace separating A and B. */
   def Connect(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
     and(SameLine(A, B), Eq(RightMostLast(A), LeftMostFirst(B), -1))
+
+  def connect(A : IndexedSymbol, B : IndexedSymbol*) : Constraint = {
+    var constraints : List[Constraint] = List()
+    var last : IndexedSymbol = A
+    for (b <- B) {
+      constraints = Connect(last, b) :: constraints
+      last = b
+    }
+    and(constraints : _*)
+  }
 
   /** There is no non-whitespace before A in the first line of A,
       and no other line of A is indented more than the first line. 
@@ -116,10 +128,6 @@ object Constraint {
     or(Eq(LastRow(A), LastRow(B), 0),
        and(First(A), WeakIndent(A, B), Eq(LeftMost(A), LeftMostFirst(A), 0)))
 
-  /** Evaluates to Undefined if A has a null span, otherwise to False */
-  def NullSpan(A : IndexedSymbol) : Constraint  = 
-    Less(FirstRow(A), FirstRow(A), 0)
-
   def collectSymbols(constraint : Constraint) : Set[IndexedSymbol] = {
     constraint match {
       case And(cs) => collectSymbols(cs)
@@ -129,6 +137,7 @@ object Constraint {
       case Less(left, right, _) => Set(left._2, right._2)
       case Leq(left, right, _) => Set(left._2, right._2)
       case Eq(left, right, _) => Set(left._2, right._2)
+      case NullSpan(symbol) => Set(symbol)
     }
   }
 
@@ -271,6 +280,11 @@ object Constraint {
           case (None, _) => None
           case (_, None) => None
           case (Some(left), Some(right)) => Some(EqEval(left, right, delta))
+        }
+      case NullSpan(symbol) => 
+        f(symbol) match {
+          case None => None
+          case Some(i) => Some(layout => Some(layout(i) == null))
         }
     }
   }

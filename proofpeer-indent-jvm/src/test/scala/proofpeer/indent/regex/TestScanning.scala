@@ -4,8 +4,6 @@ import org.scalacheck._
 import org.scalacheck.Prop.{forAll, BooleanOperators}
 
 object TestScanning extends Properties("Scanning") {
-
-  import RegularExpr._
   
   val digit = CHAR(Range(48, 57))
   val letter = CHAR(Range(65, 90) + Range(97, 122))
