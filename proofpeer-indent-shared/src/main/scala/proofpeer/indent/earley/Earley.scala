@@ -6,7 +6,13 @@ import proofpeer.indent.regex.DocumentCharacterStream
 
 object Earley {
 
-  final class Item(val coreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item)
+  var debug = false
+
+  final class Item(val coreItemId : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item) {
+    override def toString : String = {
+      "Earley.Item[coreItemId="+coreItemId+", origin="+origin+", layout="+layout+"]"
+    }
+  }
 
 }
 
@@ -247,7 +253,14 @@ final class Earley(ea : EarleyAutomaton) {
     while (item != null) {
       val coreItem = ea.coreItemOf(item)
       if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
-        if (foundItem != null) return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
+        if (foundItem != null) {
+          if (Earley.debug) {
+            println("Ambiguous node found!")
+            println("item 1: " + foundItem)
+            println("item 2: " + item)
+          }
+          return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
+        }
         foundItem = item
       }
       item = item.nextItem

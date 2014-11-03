@@ -58,6 +58,8 @@ final class EarleyAutomaton(val grammar : Grammar) {
         val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
+          if (Earley.debug)
+            println("coreItem " + id + ": " + symbol + " => " + rule.rhs + " (dot = " + dot +")")
           val coreItem = new CoreItem(nonterminal, ruleindex, dot)
           coreItem.rhs = rhs
           coreItem.nextSymbol = 

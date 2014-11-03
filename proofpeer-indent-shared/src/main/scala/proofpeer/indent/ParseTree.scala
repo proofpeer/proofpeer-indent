@@ -12,7 +12,7 @@ final case class AmbiguousNode(nonterminal : String, span : Span) extends ParseT
   def symbol = nonterminal
   def hasAmbiguities = true
   def ambiguities = List(this)
-  def getValue[T] = throw new RuntimeException("AmbiguousNode has no value")
+  def getValue[T] = throw new RuntimeException("AmbiguousNode (nonterminal="+nonterminal+",span="+span+") has no value")
 }
 
 final case class NonterminalNode(nonterminal : String, ruleindex : Int, span : Span, rhs : Vector[ParseTree], value : Any) extends ParseTree {

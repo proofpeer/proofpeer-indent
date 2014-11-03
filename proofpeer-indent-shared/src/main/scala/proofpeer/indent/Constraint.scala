@@ -301,4 +301,13 @@ object Constraint {
     }
   } 
 
+  def evalConstraintAllNull(constraint : Constraint) : Boolean = {
+    evalConstraint(constraint, f => Some(0)) match {
+      case None => true
+      case Some(evaluator) =>
+        val layout : Span.Layout = Vector(null)
+        evaluator(layout) != Some(false)
+    }
+  }
+
 }

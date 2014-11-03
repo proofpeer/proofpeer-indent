@@ -195,7 +195,9 @@ class Grammar(val rules : Vector[Rule])
         for ((nonterminal, rules) <- parserules) {
           if (!nullable.contains(nonterminal)) {
             for (rule <- rules) {
-              if (rule.rhs.forall(s => nullable.contains(s.symbol))) {
+              if (rule.rhs.forall(s => nullable.contains(s.symbol)) && 
+                Constraint.evalConstraintAllNull(rule.constraint)) 
+              {
                 nullable += nonterminal
                 changed = true
               }
