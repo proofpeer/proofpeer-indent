@@ -2,6 +2,8 @@ package proofpeer.indent
 
 package object regex {
 
+  import proofpeer.general.StringUtils
+
   /** The type of regular expressions. */
   sealed trait RegularExpr
   
@@ -37,9 +39,19 @@ package object regex {
 
   def char(c : Int) : RegularExpr = CHAR(Range(c))
 
-  def string(s : String) : RegularExpr = {
-    val codes = proofpeer.general.StringUtils.codePoints(s)
-    seq(codes.map(c => CHAR(Range(c))) : _*)
+  def caseInsensitiveChar(c : Int) : RegularExpr = {
+    val lo = StringUtils.toLowerCase(c)
+    val hi = StringUtils.toUpperCase(c)
+    if (lo != hi) ALT(char(lo), char(hi)) else char(c)
+  }
+
+  def string(s : String, caseSensitive : Boolean = true) : RegularExpr = {
+    val codes = StringUtils.codePoints(s)
+    if (caseSensitive) {
+      seq(codes.map(c => CHAR(Range(c))) : _*)
+    } else {
+      seq(codes.map(caseInsensitiveChar _) : _*)
+    }
   }
 
   def seq(rs : RegularExpr*) : RegularExpr = {
@@ -53,6 +65,8 @@ package object regex {
     for (r <- rs) range = ALT(range, r)
     range
   }
+
+  def anything : RegularExpr = REPEAT1(CHAR(Range.universal))
 
   /** @return true if expr matches the empty string. */
   def matchesEmpty(expr : RegularExpr) : Boolean = {
