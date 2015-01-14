@@ -104,5 +104,63 @@ object Document {
     }
     new UnicodeDocument(characters.reverse.toVector)
   }
+
+  /** After parsing a line, accept is called with the line as its parameter (line will not contain any line termination characters).
+    * If accept(line) is true, the line is added to the document and parsing continues; otherwise the line is not added and parsing stops.
+    */
+  def fromString(text : String, tab : Option[Int], accept : String => Boolean) : Document = {
+    import proofpeer.general.StringUtils._
+    var characters : List[(Int, Int, Int)] = List()
+    var row = 0
+    var column = 0
+    var index = 0
+    val size = text.length()
+    var line : List[Int] = List()
+    def stopParsing() : Option[Document] = {
+      val l = fromCodePoints(line.toVector.reverse)
+      if (accept(l)) {
+        line = List()
+        None
+      } else {
+        val chars = characters.drop(line.length)
+        Some(new UnicodeDocument(chars.reverse.toVector))
+      }
+    }
+    while (index < size) {
+      val code : Int = codePointAt(text, index)
+      code match {
+        case 13 /* CR */ => 
+          stopParsing() match {
+            case None =>
+            case Some(d) => return d
+          }
+          if (index + 1 < size && text.charAt(index + 1) == 10) index += 2 else index += 1
+          row += 1
+          column = 0
+        case 10 /* LF */ => 
+          stopParsing() match {
+            case None =>
+            case Some(d) => return d
+          }
+          if (index + 1 < size && text.charAt(index + 1) == 13) index += 2 else index += 1
+          row += 1
+          column = 0
+        case 32 /* SPACE */ =>
+          index += 1
+          column += 1 
+          line = 32 :: line
+        case 9 /* TAB */ if tab.isDefined =>
+          index += 1
+          column += tab.get
+          for (i <- 1 to tab.get) line = 32 :: line
+        case _ =>
+          characters = (row, column, code) :: characters
+          index += charCount(code)
+          column += 1
+          line = code :: line
+      }
+    }
+    new UnicodeDocument(characters.reverse.toVector)
+  }
   
 }
