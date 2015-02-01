@@ -116,13 +116,15 @@ object Document {
     var index = 0
     val size = text.length()
     var line : List[Int] = List()
+    var linelength = 0
     def stopParsing() : Option[Document] = {
       val l = fromCodePoints(line.toVector.reverse)
       if (accept(l)) {
         line = List()
+        linelength = 0
         None
       } else {
-        val chars = characters.drop(line.length)
+        val chars = characters.drop(linelength)
         Some(new UnicodeDocument(chars.reverse.toVector))
       }
     }
@@ -158,9 +160,13 @@ object Document {
           index += charCount(code)
           column += 1
           line = code :: line
+          linelength += 1
       }
     }
-    new UnicodeDocument(characters.reverse.toVector)
+    stopParsing() match {
+      case None => new UnicodeDocument(characters.reverse.toVector)
+      case Some(d) => d
+    }
   }
   
 }
