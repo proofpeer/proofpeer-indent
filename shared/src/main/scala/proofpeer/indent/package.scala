@@ -48,6 +48,14 @@ package object indent {
           None
       }      
     }
+
+    def parseAsTree(nonterminal : String, text : String) : Option[(Document, ParseTree)] = {
+      val d = Document.fromString(text)
+      earleyParser.parse(d, nonterminal) match {
+        case Left(parsetree) => Some((d, parsetree))
+        case Right(errorposition) => None
+      }            
+    }
   }
 
   object Parser {

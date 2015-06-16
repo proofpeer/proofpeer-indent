@@ -240,73 +240,93 @@ final class Earley(ea : EarleyAutomaton) {
     } 
   }
 
-  /** Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
-    * @param startPosition the start position (inclusive)
-    * @param endPosition the end position (exclusive)
-    */
-  def constructParseTree(document : Document, bins : Array[Bin], nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
-    val grammar = ea.grammar
-    val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
-    val bin = bins(endPosition)
-    var item = bin.processedItems
-    var foundItem : Item = null
-    while (item != null) {
-      val coreItem = ea.coreItemOf(item)
-      if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
-        if (foundItem != null) {
-          if (Earley.debug) {
-            println("Ambiguous node found!")
-            println("item 1: " + foundItem)
-            println("item 2: " + item)
-          }
-          return AmbiguousNode(nonterminalSymbol, Span.spanOfLayout(foundItem.layout))
-        }
-        foundItem = item
+  private class ParseTreeConstruction(document : Document, bins : Array[Bin]) {
+    import scala.collection.mutable.{Map => MutableMap}
+    private var cache : MutableMap[(Int, Int, Int), ParseTree] = MutableMap()
+
+    def getParseTree(nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+      val key = (nonterminal, startPosition, endPosition)
+      cache.get(key) match {
+        case None => 
+          val result = constructParseTree(nonterminal, startPosition, endPosition)
+          cache += (key -> result)
+          result
+        case Some(result) =>
+          result
       }
-      item = item.nextItem
     }
-    if (foundItem == null) throw new RuntimeException("cannot construct parse tree")
-    val coreItem = ea.coreItemOf(foundItem)
-    var subtrees = new Array[ParseTree](coreItem.rhs.size)
-    var pos = startPosition
-    for (i <- 0 until subtrees.size) {
-      val symbol = coreItem.rhs(i)
-      val span = foundItem.layout(i)
-      if (symbol < 0) {
-        subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
-        pos = span.lastTokenIndex + 1
-      } else if (span != null) {
-        subtrees(i) = constructParseTree(document, bins, symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
-        pos = span.lastTokenIndex + 1
-      } else
-        subtrees(i) = constructParseTree(document, bins, symbol, pos, pos) 
+
+    /** Constructs the parse tree using the information obtained from the recognition phase. This assumes that there actually exists at least one parse tree.
+      * @param startPosition the start position (inclusive)
+      * @param endPosition the end position (exclusive)
+      */
+    def constructParseTree(nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+      val grammar = ea.grammar
+      val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
+      val bin = bins(endPosition)
+      var item = bin.processedItems
+      var foundItems : List[Item] = List()
+      while (item != null) {
+        val coreItem = ea.coreItemOf(item)
+        if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && item.origin == startPosition) {
+          foundItems = item :: foundItems
+        }
+        item = item.nextItem
+      }
+      def mkTree(foundItem : Item) : NonterminalNode = {
+        val coreItem = ea.coreItemOf(foundItem)
+        var subtrees = new Array[ParseTree](coreItem.rhs.size)
+        var pos = startPosition
+        for (i <- 0 until subtrees.size) {
+          val symbol = coreItem.rhs(i)
+          val span = foundItem.layout(i)
+          if (symbol < 0) {
+            subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
+            pos = span.lastTokenIndex + 1
+          } else if (span != null) {
+            subtrees(i) = getParseTree(symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
+            pos = span.lastTokenIndex + 1
+          } else
+            subtrees(i) = getParseTree(symbol, pos, pos) 
+        }
+        val ruleindex = coreItem.ruleindex
+        val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
+        val rhsIndices = grammar.rhsIndices(nonterminalSymbol, ruleindex)
+        val span_ = Span.spanOfLayout(foundItem.layout)
+        val d_ = document
+        val g_ = grammar
+        val sp_ = startPosition
+        val ep_ = endPosition
+        class Context extends ParseContext {
+          val document = d_
+          val grammar = g_
+          val rule = parserule
+          val span = span_
+          val startPosition = sp_
+          val endPosition = ep_ 
+          def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
+        }
+        val value = parserule.action(new Context())
+        NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
+      }
+      foundItems match {
+        case List() => throw new RuntimeException("cannot construct parse tree")
+        case List(foundItem) => mkTree(foundItem)
+        case _ =>
+          val trees = foundItems.map(mkTree _).toVector
+          val node = trees.head
+          AmbiguousNode(node.nonterminal, node.span, trees)
+      }
     }
-    val ruleindex = coreItem.ruleindex
-    val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
-    val rhsIndices = grammar.rhsIndices(nonterminalSymbol, ruleindex)
-    val span_ = Span.spanOfLayout(foundItem.layout)
-    val d_ = document
-    val g_ = grammar
-    val sp_ = startPosition
-    val ep_ = endPosition
-    class Context extends ParseContext {
-      val document = d_
-      val grammar = g_
-      val rule = parserule
-      val span = span_
-      val startPosition = sp_
-      val endPosition = ep_ 
-      def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
-    }
-    val value = parserule.action(new Context())
-    NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
+
   }
 
   def parse(document : Document, nonterminalSymbol : String) : Either[ParseTree, Int] = {
     val nonterminal = ea.idOfNonterminal(nonterminalSymbol)
     recognize(document, Set(nonterminal)) match {
       case Left((recognized, bins)) =>
-        Left(constructParseTree(document, bins, nonterminal, 0, document.size))
+        val c = new ParseTreeConstruction(document, bins)
+        Left(c.getParseTree(nonterminal, 0, document.size))
       case Right(k) => 
         Right(k) 
     }
