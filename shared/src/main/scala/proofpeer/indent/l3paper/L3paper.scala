@@ -76,6 +76,22 @@ object Examples {
     rule("symbol", REPEAT1(ALT(char('-'), chars('a', 'z'))), Some(0), SCOPE_1) ++
     r("E", "symbol")
 
+  val lexerhack = 
+    rule("id", REPEAT1(chars('a', 'z'))) ++
+    rule("typeid", REPEAT1(chars('a', 'z'))) ++
+    rule("asterisk", string("*")) ++
+    rule("left", string("(")) ++
+    rule("right", string(")")) ++
+    r("Expr", "Cast") ++
+    r("Expr", "Mul") ++
+    r("Expr", "Deref") ++
+    r("Expr", "id") ++
+    r("Expr", "left Expr right") ++
+    r("Mul", "Expr asterisk Expr") ++
+    r("Cast", "left Type right Expr") ++
+    r("Type", "typeid") ++
+    r("Deref", "asterisk Expr")
+
 
   def main(args : Array[String]) {
     outputDir = new File("/Users/stevenobua/parsing/dots")
@@ -83,6 +99,8 @@ object Examples {
     run("Example_1", grammar_1, "S", "a-b+c")
     run("Example_2", grammar_2, "S", "a-b+c")
     run("Example_3", grammar_3, "S", "a-b+c")
+    run("lexerhack", lexerhack, "Expr", "(a)*b")
+
   }
 
 }
