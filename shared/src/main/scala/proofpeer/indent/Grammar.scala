@@ -71,11 +71,11 @@ object GrammarError {
   }
 
   case class UnknownSymbolInConstraint(unknownSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
-    override def toString : String = "The symbol '" + unknownSymbol + "' is referenced in the constraints but doesn't appear in the corresponding right hand side in the definition of '" + symbol + "'."    
+    override def toString : String = "The symbol '" + unknownSymbol + "' is referenced in the constraints but doesn't appear in the definition of '" + symbol + "'."    
   }
 
   case class AmbiguousSymbolInConstraint(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
-    override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in the constraints but doesn't appear in the corresponding right hand side in the definition of '" + symbol + "'."    
+    override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in the constraints but is ambiguous in the definition of '" + symbol + "'."    
   }
 
 }
@@ -101,7 +101,9 @@ class Grammar(val rules : Vector[Rule])
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
             val symbols = Constraint.collectSymbols(rule.constraint)
-            val frequency = rule.rhs.groupBy(l => l).map(t => (t._1, t._2.size))
+            val indexedSymbol = IndexedSymbol(rule.symbol, None)
+            val symbolsOfRule = rule.rhs :+ indexedSymbol
+            val frequency = symbolsOfRule.groupBy(l => l).map(t => (t._1, t._2.size))
             for (symbol <- symbols) {
               frequency.get(symbol) match {
                 case None => errors :+= UnknownSymbolInConstraint(symbol, rule.symbol, ruleindex)
