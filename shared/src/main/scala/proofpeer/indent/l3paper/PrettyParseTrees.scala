@@ -88,7 +88,7 @@ object PrettyParseTrees {
         case node : NonterminalNode => 
           val from = 
             alternative match {
-              case None => graph.addNonterminal(node.nonterminal, false, node.span.firstTokenIndex, node.span.lastTokenIndex)
+              case None => graph.addNonterminal(node.nonterminal, false, node.span.firstIndexIncl, node.span.lastIndexExcl)
               case Some(choice) => graph.addAlternative(node.nonterminal, choice)
             }
           for (subtree <- node.rhs) {
@@ -97,9 +97,9 @@ object PrettyParseTrees {
           }
           from
         case node : TerminalNode =>
-          graph.addTerminal(node.terminal, node.span.firstTokenIndex, node.span.lastTokenIndex)
+          graph.addTerminal(node.terminal, node.span.firstIndexIncl, node.span.lastIndexExcl)
         case node : AmbiguousNode =>
-          val from = graph.addNonterminal(node.nonterminal, true, node.span.firstTokenIndex, node.span.lastTokenIndex)
+          val from = graph.addNonterminal(node.nonterminal, true, node.span.firstIndexIncl, node.span.lastIndexExcl)
           var choice = 1
           for (alternative <- node.alternatives) {
             val to = 

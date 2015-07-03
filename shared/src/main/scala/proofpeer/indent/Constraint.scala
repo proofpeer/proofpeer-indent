@@ -52,27 +52,27 @@ object Constraint {
   }
 
   /** Row of the first line of s. */
-  final case object FirstRow extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.firstRow) }
+  final case object FirstRow extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.firstRow) }
 
   /** Row of the last line of s. */
-  final case object LastRow extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.lastRow) }
+  final case object LastRow extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.lastRow) }
 
   /** Column of first non-whitespace character in the first line of s. */ 
-  final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMostInFirst) }
+  final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.leftMostInFirst) }
 
   /** Minimum column in which a character of s appears. */
-  final case object LeftMost extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMost) }
+  final case object LeftMost extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.leftMost) }
 
   /** Minimum column in which a character of s appears which is also in the first line of s. */
-  final case object LeftMostFirst extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.leftMostFirst) }
+  final case object LeftMostFirst extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.leftMostFirst) }
 
   /** Minimum column in which a character of s appears which is not in the first line of s.
     * This value is only defined if s consists of at least two rows. 
     */
-  final case object LeftMostRest extends LayoutQualifier { def get(s : Span) = if (s == null || s.firstRow == s.lastRow) None else Some(s.leftMostRest) }
+  final case object LeftMostRest extends LayoutQualifier { def get(s : Span) = if (s.isNull || s.firstRow == s.lastRow) None else Some(s.leftMostRest) }
 
   /** Maximum column in which a character of s appears which is also in the last line of s. */
-  final case object RightMostLast extends LayoutQualifier { def get(s : Span) = if (s == null) None else Some(s.rightMostLast) }
+  final case object RightMostLast extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.rightMostLast) }
 
   /** B starts in the same line that A ends in. */
   def SameLine(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
@@ -284,7 +284,7 @@ object Constraint {
       case NullSpan(symbol) => 
         f(symbol) match {
           case None => None
-          case Some(i) => Some(layout => Some(layout(i) == null))
+          case Some(i) => Some(layout => Some(layout(i).isNull))
         }
     }
   }
@@ -300,14 +300,5 @@ object Constraint {
       case Some(i) => Some(EvalQualifier(q, i))
     }
   } 
-
-  def evalConstraintAllNull(constraint : Constraint) : Boolean = {
-    evalConstraint(constraint, f => Some(0)) match {
-      case None => true
-      case Some(evaluator) =>
-        val layout : Span.Layout = Vector(null)
-        evaluator(layout) != Some(false)
-    }
-  }
 
 }

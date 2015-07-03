@@ -106,7 +106,7 @@ final class Earley(ea : EarleyAutomaton) {
     for (coreItemId <- 0 until ea.coreItems.size) {
       val coreItem = ea.coreItems(coreItemId)
       if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) 
-        bin.addItem(coreItemId, 0, null)
+        bin.addItem(coreItemId, 0, Span.emptyLayout(0, coreItem.includes))
     }
     bin
   }
@@ -122,23 +122,28 @@ final class Earley(ea : EarleyAutomaton) {
       if (nextSymbol < 0) /* terminal */ 
         terminals += nextSymbol
       else if (nextSymbol > 0) /* nonterminal */ {
-        for (predictedItem <- coreItem.predictedCoreItems) 
-          bin.addItem(predictedItem, k, null)
+        for (predictedItem <- coreItem.predictedCoreItems) {
+          val predictedCoreItem = ea.coreItems(predictedItem)
+          val layout = Span.emptyLayout(k, predictedCoreItem.includes)
+          bin.addItem(predictedItem, k, layout)
+        }
         if (coreItem.nextSymbolIsNullable) {
-          val layout = Span.addToLayout(item.layout, null)
+          val layout = Span.addToLayout(item.origin, coreItem.includes, item.layout, 
+            Span.nullSpan(k, k))
           val nextCoreItemId = coreItem.nextCoreItem
           val nextCoreItem = ea.coreItems(nextCoreItemId)
           if (nextCoreItem.evalConstraint(layout))
-            bin.addItem(nextCoreItemId, item.origin, Span.addToLayout(item.layout, null))
+            bin.addItem(nextCoreItemId, item.origin, layout)
         }
       } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
-        val span = Span.spanOfLayout(item.layout)
+        val span = Span.getSpanOfLayout(item.layout)
         var originItem = bins(item.origin).processedItems
         while (originItem != null) {
           val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
-            val layout = Span.addToLayout(originItem.layout, span)
+            val layout = Span.addToLayout(originItem.origin, originCoreItem.includes,
+              originItem.layout, span)
             val nextCoreItemId = originCoreItem.nextCoreItem
             val nextCoreItem = ea.coreItems(nextCoreItemId)
             if (nextCoreItem.evalConstraint(layout)) 
@@ -181,7 +186,7 @@ final class Earley(ea : EarleyAutomaton) {
         while (item != null) {
           val coreItem = ea.coreItemOf(item)
           if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
-            val layout = Span.addToLayout(item.layout, span)
+            val layout = Span.addToLayout(item.origin, coreItem.includes, item.layout, span)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
             if (nextCoreItem.evalConstraint(layout)) {
               destBin.addItem(coreItem.nextCoreItem, item.origin, layout)
@@ -276,23 +281,18 @@ final class Earley(ea : EarleyAutomaton) {
       def mkTree(foundItem : Item) : NonterminalNode = {
         val coreItem = ea.coreItemOf(foundItem)
         var subtrees = new Array[ParseTree](coreItem.rhs.size)
-        var pos = startPosition
         for (i <- 0 until subtrees.size) {
           val symbol = coreItem.rhs(i)
           val span = foundItem.layout(i)
-          if (symbol < 0) {
+          if (symbol < 0)
             subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
-            pos = span.lastTokenIndex + 1
-          } else if (span != null) {
-            subtrees(i) = getParseTree(symbol, span.firstTokenIndex, span.lastTokenIndex + 1)
-            pos = span.lastTokenIndex + 1
-          } else
-            subtrees(i) = getParseTree(symbol, pos, pos) 
+          else 
+            subtrees(i) = getParseTree(symbol, span.firstIndexIncl, span.lastIndexExcl)
         }
         val ruleindex = coreItem.ruleindex
         val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
         val rhsIndices = grammar.rhsIndices(nonterminalSymbol, ruleindex)
-        val span_ = Span.spanOfLayout(foundItem.layout)
+        val span_ = Span.getSpanOfLayout(foundItem.layout)
         val d_ = document
         val g_ = grammar
         val sp_ = startPosition
@@ -313,6 +313,7 @@ final class Earley(ea : EarleyAutomaton) {
         case List() => throw new RuntimeException("cannot construct parse tree")
         case List(foundItem) => mkTree(foundItem)
         case _ =>
+          // to fix: if multiple spans are found here, not all of them might work for the constraint
           val trees = foundItems.map(mkTree _).toVector
           val node = trees.head
           AmbiguousNode(node.nonterminal, node.span, trees)

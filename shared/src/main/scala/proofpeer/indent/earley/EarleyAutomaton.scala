@@ -6,6 +6,7 @@ import proofpeer.indent.regex._
 final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : Int) {
   var rhs : Vector[Int] = null
   var nextSymbol : Int = 0 
+  var includes : Vector[Boolean] = null
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
@@ -68,9 +69,15 @@ final class EarleyAutomaton(val grammar : Grammar) {
             if (coreItem.nextSymbol <= 0) false else grammar.nullableNonterminals.contains(rule.rhs(dot).symbol)
           coreItem.nextCoreItem = 
             if (coreItem.nextSymbol == 0) -1 else id + 1
+          coreItem.includes = Vector[Boolean]()
+          for (r <- rule.rhs) coreItem.includes = coreItem.includes :+ true
           def f(s : IndexedSymbol) : Option[Int] = {
-            val i = rhsIndices(s)
-            if (i < dot) Some(i) else None
+            if (s.index == None && s.symbol == rule.symbol) {
+              if (coreItem.nextSymbol == 0) Some(rule.rhs.size) else None
+            } else {
+              val i = rhsIndices(s)
+              if (i < dot) Some(i) else None                            
+            }
           }
           Constraint.evalConstraint(rule.constraint, f) match {
             case Some(eval) => 

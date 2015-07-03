@@ -13,7 +13,7 @@ trait Document {
 
   def getText(span : Span) : String = 
     if (span == null) ""
-    else getText(span.firstTokenIndex, span.lastTokenIndex - span.firstTokenIndex + 1)
+    else getText(span.firstIndexIncl, span.lastIndexExcl - span.firstIndexIncl)
 
 }
 
