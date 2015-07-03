@@ -69,8 +69,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
             if (coreItem.nextSymbol <= 0) false else grammar.nullableNonterminals.contains(rule.rhs(dot).symbol)
           coreItem.nextCoreItem = 
             if (coreItem.nextSymbol == 0) -1 else id + 1
-          coreItem.includes = Vector[Boolean]()
-          for (r <- rule.rhs) coreItem.includes = coreItem.includes :+ true
+          coreItem.includes = rule.includes
           def f(s : IndexedSymbol) : Option[Int] = {
             if (s.index == None && s.symbol == rule.symbol) {
               if (coreItem.nextSymbol == 0) Some(rule.rhs.size) else None
