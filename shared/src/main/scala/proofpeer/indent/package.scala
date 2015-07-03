@@ -17,12 +17,27 @@ package object indent {
       IndexedSymbol(name, None)
   }
 
-  def string2rhs(s : String) : Vector[IndexedSymbol] = {
+  private def string2rhs(s : String) : Vector[IndexedSymbol] = {
     if (s.trim().isEmpty())
       Vector()
     else
       split_nonempty(s, " ").map(name2IndexedSymbol(_)).toVector
   }
+
+  def string2rhsi(s : String) : (Vector[IndexedSymbol], Vector[Boolean]) = {
+    val u = s.indexOf("[")
+    val v = s.indexOf("]")
+    if (u < 0 && v < 0) {
+      val rhs = string2rhs(s)
+      (rhs, Vector.fill(rhs.size)(true))
+    } else if (u >= 0 && v > u) {
+      val t = s.substring(u + 1, v)
+      val rhs = string2rhs(t)
+      val (r, i) = string2rhsi(s.substring(v+1))
+      (rhs ++ r, Vector.fill(rhs.size)(false) ++ i)
+    } else throw new RuntimeException("] cannot come before [")
+  }
+
 
   final class Parser(grammar : Grammar, printErrors : Boolean) {
     if (!grammar.isWellformed) {
@@ -69,11 +84,13 @@ package object indent {
   }
 
   def rule(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {
-    Grammar(ParseRule(nonterminal, string2rhs(rhs), Constraint.unconstrained, action))
+    val (r, i) = string2rhsi(rhs)
+    Grammar(ParseRule(nonterminal, r, i, Constraint.unconstrained, action))
   }
 
   def rule(nonterminal : String, rhs : String, constraint : Constraint, action : ParseContext => Any) : Grammar = {
-    Grammar(ParseRule(nonterminal, string2rhs(rhs), constraint, action))    
+    val (r, i) = string2rhsi(rhs)
+    Grammar(ParseRule(nonterminal, r, i, constraint, action))    
   }
 
  

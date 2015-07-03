@@ -47,7 +47,7 @@ trait ParseContext extends Dynamic {
 
 }
 
-case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], constraint : Constraint, 
+case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], includes : Vector[Boolean], constraint : Constraint, 
   action : ParseContext => Any) extends Rule
 
 sealed trait GrammarError 
@@ -76,6 +76,10 @@ object GrammarError {
 
   case class AmbiguousSymbolInConstraint(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
     override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in the constraints but is ambiguous in the definition of '" + symbol + "'."    
+  }
+
+  case class IncludesMismatch(symbol : String, includesFound : Int, includesExpected : Int, rule : Int) extends GrammarError {
+    override def toString : String = "Found " + includesFound + " instead of " + includesExpected + " include specs in definition of '" + symbol + "'."
   }
 
 }
@@ -111,6 +115,8 @@ class Grammar(val rules : Vector[Rule])
                   if (f != 1) errors :+= AmbiguousSymbolInConstraint(symbol, rule.symbol, ruleindex)
               }
             }
+            if (rule.rhs.size != rule.includes.size) 
+              errors :+= IncludesMismatch(rule.symbol, rule.includes.size, rule.rhs.size, ruleindex)
           case rule : ScanRule =>
             scanSymbols.get(rule.symbol) match {
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
