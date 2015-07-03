@@ -15,24 +15,43 @@ final case class Span(
   var leftMostFirst : Int,
   var leftMostRest : Int, // negative if not applicable
   var rightMostLast : Int, 
-  var firstTokenIndex : Int,
-  var lastTokenIndex : Int) 
+  var firstIndexIncl : Int,
+  var lastIndexExcl : Int) 
 {
     
   /** This assumes that s does not overlap with this span and actually comes ''behind'' it. */
   def addBehind(s : Span) {
-    leftMostRest = 
-      if (firstRow < s.firstRow) {
-        if (leftMostRest < 0) 
-          s.leftMost
-        else if (leftMostRest <= s.leftMost) 
-          leftMostRest 
-        else s.leftMost
-      } else s.leftMostRest
-    lastRow = s.lastRow
-    leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
-    rightMostLast = s.rightMostLast
-    lastTokenIndex = s.lastTokenIndex
+    if (firstRow < 0) {
+      firstRow = s.firstRow
+      lastRow = s.lastRow
+      leftMostInFirst = s.leftMostInFirst
+      leftMost = s.leftMost
+      leftMostFirst = s.leftMostFirst
+      leftMostRest = s.leftMostRest
+      rightMostLast = s.rightMostLast
+      lastIndexExcl = s.lastIndexExcl
+    } else {
+      if (s.firstRow >= 0) {
+        leftMostRest = 
+          if (firstRow < s.firstRow) {
+            if (leftMostRest < 0) 
+              s.leftMost
+            else if (leftMostRest <= s.leftMost) 
+              leftMostRest 
+            else s.leftMost
+          } else s.leftMostRest
+        lastRow = s.lastRow
+        leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
+        rightMostLast = s.rightMostLast
+        lastIndexExcl = s.lastIndexExcl      
+      } else {
+        lastIndexExcl = s.lastIndexExcl
+      }
+    }
+  }
+
+  def isNull : Boolean = {
+    firstRow < 0  
   }
 
   override def toString : String = {
@@ -45,20 +64,22 @@ final case class Span(
 
 final object Span {
 
-  def apply(leftMostInRow : Int, row : Int, column : Int, tokenIndex : Int, len : Int = 1) : Span = {
-    Span(row, row, leftMostInRow, column, column, -1, column + len - 1, tokenIndex, tokenIndex + len - 1)
+  def apply(leftMostInRow : Int, row : Int, column : Int, firstIndex : Int, len : Int = 1) : Span = {
+    Span(row, row, leftMostInRow, column, column, -1, column + len - 1, firstIndex, firstIndex + len)
   }
 
   def apply(span : Span) : Span = {
     import span._
-    Span(firstRow, lastRow, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstTokenIndex, lastTokenIndex)
+    Span(firstRow, lastRow, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstIndexIncl, lastIndexExcl)
   }
 
-  type Layout = Vector[Span] // null is treated as Vector()  
+  def nullSpan(firstIndexIncl : Int, lastIndexIncl : Int) : Span = {
+    Span(-1, -1, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
+  }
+
+  type Layout = Vector[Span] 
 
   def layoutsAreEqual(u : Layout, v : Layout) : Boolean = {
-    if (u == null) return v == null
-    if (v == null) return false
     val size = u.size
     if (size != v.size) return false
     for (i <- 0 until size) 
@@ -66,23 +87,40 @@ final object Span {
     return true
   }
 
-  def addToLayout(layout : Layout, span : Span) : Layout = {
-    if (layout == null) Vector(span)
-    else layout :+ span
+  def emptyLayout(firstIndexIncl : Int, includes : Vector[Boolean]) : Layout = {
+    if (includes.size > 0) Vector()
+    else Vector(Span.nullSpan(firstIndexIncl, firstIndexIncl))
   }
 
-  def spanOfLayout(layout : Layout) : Span = {
-    if (layout == null) return null
-    var span : Span = null
-    for (s <- layout) {
-      if (s != null) {
-        if (span == null) 
-          span = Span(s)
-        else 
-          span.addBehind(s)
-      }
+  def addToLayout(firstTokenIncl : Int, includes : Vector[Boolean], 
+    layout : Layout, span : Span) : Layout = 
+  {
+    if (span == null) throw new RuntimeException("cannot add null to layout")
+    if (layout == null) throw new RuntimeException("layout cannot be null")
+    val l = layout :+ span
+    if (layout.size + 1 == includes.size)
+      l :+ computeSpanOfLayout(firstTokenIncl, includes, l)
+    else 
+      l
+  }
+
+  private def computeSpanOfLayout(firstIndexIncl : Int, includes : Vector[Boolean], 
+    layout : Layout) : Span = 
+  {
+    var span : Span = Span.nullSpan(firstIndexIncl, firstIndexIncl)
+    var i = 0
+    val size = includes.size
+    while (i < size) {
+      val s = layout(i)
+      if (includes(i)) 
+        span.addBehind(s) 
+      else 
+        span.addBehind(Span.nullSpan(s.firstIndexIncl, s.lastIndexExcl))
+      i = i + 1
     }
     span
   }
+
+  def getSpanOfLayout(layout : Layout) : Span = layout(layout.size - 1)
 
 }
