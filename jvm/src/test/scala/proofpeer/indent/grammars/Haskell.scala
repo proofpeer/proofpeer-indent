@@ -102,8 +102,6 @@ object HaskellGrammar {
       simplerule("lexeme", "qconsym") ++
       simplerule("lexeme", "qtycon") ++
       simplerule("lexeme", "qtycls") ++
-//      simplerule("lexeme", "reservedop") ++
-//      simplerule("lexeme", "reservedid") ++
       simplerule("literal", "integer") ++
       simplerule("literal", "float") ++
       simplerule("literal", "whitechar") ++
@@ -156,6 +154,8 @@ object HaskellGrammar {
       lex("tyvar", lowerid, Some(0)) ++
       lex("tycon", conid) ++
       lex("tycls", conid) ++
+      // Strictly Haskell98, which does not have hierarchical module names
+      lex("modid", conid) ++
       lex("qualsep", char('.')) ++
       lex("integer", integer) ++
       lex("float", float) ++
@@ -167,22 +167,6 @@ object HaskellGrammar {
       lex("singlequote", char('\'')) ++
       lex("doublequote", char('\"'))
   )
-
-  val reservedid = {
-    val regexp =
-      List(
-        "case","class","data","default","deriving","do","else","if","import","in",
-        "infix","infixl","infixr","instance","let","module","newtype","of","then",
-        "type","where","_").foldMap(string(_))
-    lex("reservedid", regexp, Some(1))
-  }
-
-  val reservedop = {
-    val regexp =
-      List("..",":","::","=","\\","|","<-","->","@","~","=>").foldMap(string(_))
-
-    lex("reservedop", regexp, Some(1))
-  }
 
   sealed abstract class Assoc
   case object NoAssoc extends Assoc
@@ -199,16 +183,6 @@ object HaskellGrammar {
       case LeftAssoc => "l"
       case RightAssoc => "r"
     }) + "," + i + ")"
-
-  def contextDelims = (
-    lex("openbrace", char('{')) ++
-      lex("closebrace", char('}')) ++
-      simplerule("ctx", "openbrace") ++
-      lex("semi", char(';')) ++
-      simplerule("semis", "semi [semis]") ++
-      simplerule("openctx", "openbrace [semis]") ++
-      simplerule("closectx", "[semis] closebrace")
-  )
 
   def withCtx(
     nonterminal: String,
@@ -270,36 +244,62 @@ object HaskellGrammar {
     nonterminalsRepLaidout
   }
 
+  def when[M:Monoid](b:Boolean)(x:M) = if (b) x else ∅[M]
+
   def grammar(i: Int, a: Assoc) = (
-    keywords(
-      "module","where","import","as","type","data","deriving",
-      "if","then","else","case","of") ++
-      lex("comma", char(',')) ++
-      lex("ldots", string("..")) ++
-      lex("openparen", char('(')) ++
-      lex("closeparen", char(')')) ++
-      // Strictly Haskell98, which does not have hierarchical module names
-      lex("modid", conid) ++
-      contextDelims ++
+    when (i == 0 && a == NoAssoc) {
+      keywords(
+        "module","where","import","qualified","as","type","data","deriving",
+        "if","then","else","case","of", "instance", "default",
+        "infixl", "infixr", "infix", "let", "in", "do") ++
+      keysyms(
+        ("equals","="),
+        ("implies","=>"),
+        ("hastype","::"),
+        ("arrow","->"),
+        ("openparen", "("),
+        ("closeparen", ")"),
+        ("opensquare", "["),
+        ("closesquare", "]"),
+        ("openbrace", "{"),
+        ("closebrace", "}"),
+        ("semi", ";"),
+        ("semis", "semi [semis]"),
+        ("openctx", "openbrace [semis]"),
+        ("closectx", "[semis] closebrace"),
+        ("comma", ","),
+        ("ldots", ".."),
+        ("bang", "!"),
+        ("vert", "|"),
+        ("unaryneg", "-"),
+        ("lambda", "\\"),
+        ("drawfrom", "<-"),
+        ("at", "@"),
+        ("backquote", "`"),
+        ("colon", ":")
+      ) ++
+      lex("plus", char('+'))
+    } ++
       simplerule("moduledef,", "module modid [exports] where body") ++
       simplerule("moduledef", "body") ++
       withCtx("body","impdecl",List("topdecl")) ++
-      simplerule("exports", "export [comma exports]") ++
-      simplerule("export", "qvar") ++
-      simplerule("export", "qtycon") ++
-      simplerule("export", "qtycon openparen ldots closeparen") ++
-      simplerule("export", "qtycon openparen cnames closeparen") ++
-      simplerule("export", "qtycls openparen ldots closeparen") ++
-      simplerule("export", "qtycls openparen qvars closeparen") ++
-      simplerule("export", "module modid") ++
+      simplerule("exports", "anexport [comma exports]") ++
+      simplerule("anexport", "qvar") ++
+      simplerule("anexport", "qtycon") ++
+      simplerule("anexport", "qtycon openparen ldots closeparen") ++
+      simplerule("anexport", "qtycon openparen cnames closeparen") ++
+      simplerule("anexport", "qtycls openparen ldots closeparen") ++
+      simplerule("anexport", "qtycls openparen qvars closeparen") ++
+      simplerule("anexport", "module modid") ++
       simplerule("impdecl", "import [qualified] modid [as modid] [impspec]") ++
       simplerule("impspec", "animport [comma impspec]") ++
-      simplerule("import", "var") ++
-      simplerule("import", "tycon") ++
-      simplerule("import", "tycon openparen ldots closeparen") ++
-      simplerule("import", "tycon openparen cnames closeparen") ++
-      simplerule("import", "tycls openparen ldots closeparen") ++
-      simplerule("import", "tycls openparen qvars closeparen") ++
+      simplerule("animport", "var") ++
+      simplerule("animport", "tycon") ++
+      simplerule("animport", "tycon openparen ldots closeparen") ++
+      simplerule("animport", "tycon openparen cnames closeparen") ++
+      simplerule("animport", "tycls openparen ldots closeparen") ++
+      simplerule("animport", "tycls openparen vars closeparen") ++
+      simplerule("qvars", "qvar [qvars]") ++
       simplerule("cnames", "cname cnames") ++
       simplerule("cname",  "var") ++
       simplerule("cname",  "con") ++
@@ -308,7 +308,7 @@ object HaskellGrammar {
       simplerule("topdecl", "data [context implies] simpletype equals newconstr"
         ++ "[derivingClause]") ++
       simplerule("topdecl", "class [scontext implies] tycls tyvar [where cdecls]") ++
-      simplerule("topdecl", "instance [scontext =>] qtycls inst [where idecls]") ++
+      simplerule("topdecl", "instance [scontext implies] qtycls inst [where idecls]") ++
       simplerule("topdecl", "default typelist") ++
       simplerule("topdecl", "decl") ++
       simplerule("typelist", "thetype [comma typelist]") ++
@@ -321,6 +321,8 @@ object HaskellGrammar {
       simplerule("cdecl", "funlhs rhs") ++
       simplerule("cdecl", "var rhs") ++
       withCtx("idecls", "idecl", List()) ++
+      simplerule("idecl", "funlhs rhs") ++
+      simplerule("idecl", "var rhs") ++
       simplerule("gendecl", "vars hastype [context implies] thetype") ++
       simplerule("gendecl", "fixity [integer] ops") ++
       simplerule("ops", "op comma [ops]") ++
@@ -331,10 +333,16 @@ object HaskellGrammar {
       simplerule("thetype", "btype [arrow type]") ++
       simplerule("btype", "[btype] atype") ++
       simplerule("atype", "gtycon") ++
-      simplerule("atype", "openparen closeparen") ++
-      simplerule("atype", "opensquare closesquare") ++
-      simplerule("atype", "openparen arrow closeparen") ++
-      simplerule("atype", "openparen commas closeparen") ++
+      simplerule("atype", "tyvar") ++
+      simplerule("atype", "openparen type comma types closeparen") ++
+      simplerule("atype", "opensquare type closesquare") ++
+      simplerule("atype", "openparen type closeparen") ++
+      simplerule("types", "type [comma types]") ++
+      simplerule("gtycon", "qtycon") ++
+      simplerule("gtycon", "openparen closeparen") ++
+      simplerule("gtycon", "opensquare closesquare") ++
+      simplerule("gtycon", "openparen arrow closeparen") ++
+      simplerule("gtycon", "openparen commas closeparen") ++
       simplerule("commas", "comma [commas]") ++
       simplerule("context", "class") ++
       simplerule("context", "openparen classes closeparen") ++
@@ -357,6 +365,8 @@ object HaskellGrammar {
       simplerule("con", "openbrace fielddecls closebrace") ++
       simplerule("lazyatypes", "lazyatype [lazyatypes]") ++
       simplerule("lazyatype", "[openparen bang closeparen] atype") ++
+      simplerule("newconstr", "con atype") ++
+      simplerule("newconstr", "con openbrace var hastype type closebrace") ++  
       simplerule("fielddecls", "fielddecl [comma fielddecls]") ++
       simplerule("fielddecl", "vars hastype thetype") ++
       simplerule("fielddecl", "vars hastype bang atype") ++
@@ -371,32 +381,35 @@ object HaskellGrammar {
       simplerule("inst", "tyvar arrow tyvar") ++
       simplerule("commatyvars", "tyvar [comma commatyvars]") ++
       simplerule("funlhs", "var apat openbrace apat closebrace") ++
-      simplerule("funlhs", "var" + (i + 1), "varop" + a + i, "pat" + (i + 1)) ++
+      simplerule("funlhs", "pat" + (i + 1), "varop" + a + i, "pat" + (i + 1)) ++
       simplerule("funlhs", "lpat" + i, "varopLeftAssoc" + i, "pat" + (i + 1)) ++
       simplerule("funlhs", "pat" + (i + 1), "varopRightAssoc" + i, "rpat" + i) ++
       simplerule(
         "funlhs",
         "openparen funlhs closeparen apat openbrace apat closebrace") ++
-      simplerule("rhs", "equal exp [where decls]") ++
+      simplerule("rhs", "equals exp [where decls]") ++
       simplerule("rhs", "gdrhs [where decls]") ++
       simplerule("gdrhs", "gd equals exp [gdrhs") ++
       simplerule("gd", "vert exp0") ++
       simplerule("exp", "exp0 hastype [context implies] thetype") ++
       simplerule("exp", "exp0") ++
-      simplerule("exp" + i, "exp" + (i+1), "[qopNoAssoc" + i + "]", "exp" + (i+1)) ++
-      simplerule("exp" + i, "lexp" + i) ++
-      simplerule("exp" + i, "rexp" + i) ++
+      when (i < 9) {
+        simplerule("exp" + i, "exp" + (i+1), "[qopNoAssoc" + i + "]", "exp" + (i+1)) ++
+        simplerule("rexp" + i, "exp" + (i+1), "qopRightAssoc" + i, "rexp" + i)
+      } ++
       simplerule("lexp" + i, "lexp" + i, "qopLeftAssoc" + i, "exp" + (i+1)) ++
       simplerule("lexp" + i, "exp" + (i+1), "qopLeftAssoc" + i, "exp" + (i+1)) ++
+      simplerule("rexp" + i, "exp" + (i+1), "qopRightAssoc" + i, "exp" + (i+1)) ++
+      simplerule("exp" + i, "lexp" + i) ++
+      simplerule("exp" + i, "rexp" + i) ++
       simplerule("lexp6", "unaryneg exp7") ++
-      simplerule("rexp" + i, "exp" + (i+1), "qopRightAssoc" + i, "rexp" + i) ++
-      simplerule("rexp" + i, "exp" + (i+1), "qopRightAssoc" + i, "exp" + (i + 1)) ++
       simplerule("exp10", "lambda apats arrow exp") ++
       simplerule("exp10", "let decls in exp") ++
       simplerule("exp10", "if exp then exp else exp") ++
       simplerule("exp10", "case exp of alts") ++
-      simplerule("exp10", "do dobody") ++
+      simplerule("exp10", "do stmts") ++
       simplerule("exp10", "fexp") ++
+      simplerule("apats", "apat [apats]") ++
       simplerule("fexp", "[fexp] aexp") ++
       simplerule("aexp", "qvar") ++
       simplerule("aexp", "gcon") ++
@@ -405,14 +418,17 @@ object HaskellGrammar {
       simplerule("aexp", "openparen exp comma tupleexps closeparen") ++
       simplerule("aexp", "opensquare listexps closesquare") ++
       simplerule("aexp", "opensquare [comma exp] ldots [exp] closesquare") ++
-      simplerule("aexp", "opensquare exp vert quals clossquare") ++
-      simplerule("aexp", "openparen", "exp" + (i+1), "qop" + a + i, "closeparen") ++
+      simplerule("aexp", "opensquare exp vert quals closesquare") ++
+      when (i < 9) {
+        simplerule("aexp", "openparen", "exp" + (i+1), "qop" + a + i, "closeparen") ++
+        simplerule(
+          "aexp", "openparen", "qop" + a + i, "exp" + (i+1), "closeparen") ++
+        simplerule("aexp", "qopRightAssoc" + i, "rexp" + (i+1)) ++
+        simplerule("qop", "unaryneg")
+      } ++
       simplerule("aexp", "openparen", "lexp" + i, "qopLeftAssoc" + i, "closeparen") ++
-      simplerule(
-        "aexp", "openparen", "qopnotunaryneg" + a + i, "exp" + (i+1), "closeparen") ++
-      simplerule("aexp", "qopnotunarynegRightAssoc", "rexp" + (i+1)) ++
       simplerule("aexp", "qcon openbrace [fbinds] closebrace") ++
-      simplerule("aexp", "aexpnotqcon openbrace fbinds closebrace") ++
+      simplerule("aexp", "qvar openbrace fbinds closebrace") ++
       simplerule("tupleexps", "exp [comma tupleexps]") ++
       simplerule("listexps", "exp [comma listexps]") ++
       simplerule("quals", "qual [comma quals]") ++
@@ -430,24 +446,27 @@ object HaskellGrammar {
       simplerule("stmt", "let decls") ++
       simplerule("fbind", "qvar equals exp") ++
       // Not Haskell 2010
-      simplerule("pat", "var + integer") ++
+      simplerule("pat", "var plus integer") ++
       simplerule("pat", "pat0") ++
-      simplerule(
-        "pat" + i, "pat" + (i+1), "[qconopNoAssoc" + i + " pat" + (i+1) + "]") ++
-      simplerule("pat" + i, "lpat" + i) ++
-      simplerule("pat" + i, "rpat" + i) ++
+      when (i < 9) {
+        simplerule(
+          "pat" + i, "pat" + (i+1), "[qconopNoAssoc" + i + " pat" + (i+1) + "]")
+      } ++
       simplerule("lpat" + i, "lpat" + i, "qconopLeftAssoc" + i, "pat" + (i+1)) ++
       simplerule("lpat" + i, "pat" + (i+1), "qconopLeftAssoc" + i, "pat" + (i+1)) ++
-      simplerule("lpat6", "unaryneg integer") ++
-      simplerule("lpat6", "unaryneg float") ++
       simplerule("rpat" + i, "pat" + (i+1), "qconopRightAssoc" + i, "rpat" + i) ++
       simplerule("rpat" + i, "pat" + (i+1), "qconopRightAssoc" + i, "pat" + (i+1)) ++
+      simplerule("pat" + i, "lpat" + i) ++
+      simplerule("pat" + i, "rpat" + i) ++
+      simplerule("lpat6", "unaryneg integer") ++
+      simplerule("lpat6", "unaryneg float") ++
       simplerule("pat10", "apat") ++
       simplerule("pat10", "gcon apats") ++
       simplerule("apat", "var [at apat]") ++
       simplerule("apat", "gcon") ++
       simplerule("apat", "gcon openbrace fpats") ++
       simplerule("fpats", "fpat [fpats]") ++
+      simplerule("fpat", "qvar equals pat") ++
       simplerule("gcon", "openparen closeparen") ++
       simplerule("gcon", "opensquare closesquare") ++
       simplerule("gcon", "openparen commas closeparen") ++
@@ -460,24 +479,29 @@ object HaskellGrammar {
       simplerule("con", "openparen consym closeparen") ++
       simplerule("qcon", "qconid") ++
       simplerule("qcon", "openparen gconsym closeparen") ++
+      simplerule("varop" + a + i, "varsym") ++
+      simplerule("varop" + a + i, "backquote varid backquote") ++
       simplerule("varop", "varsym") ++
       simplerule("varop", "backquote varid backquote") ++
-      simplerule("qvarop", "qvarsym") ++
-      simplerule("qvarop", "backquote qvarid backquote") ++
+      simplerule("qvarop" + a + i, "qvarsym") ++
+      simplerule("qvarop" + a + i, "backquote qvarid backquote") ++
       simplerule("conop", "consym") ++
       simplerule("conop", "backquote conid backquote") ++
-      simplerule("qconop", "qconsym") ++
-      simplerule("qconop", "backquote qconid backquote") ++
+      simplerule("qconop" + a + i, "qconsym") ++
+      simplerule("qconop" + a + i, "backquote qconid backquote") ++
       simplerule("op", "varop") ++
       simplerule("op", "conop") ++
-      simplerule("qop", "qvarop") ++
-      simplerule("qop", "qconop") ++
+      simplerule("qop" + a + i, "qvarop" + a + i) ++
+      simplerule("qop" + a + i, "qconop" + a + i) ++
       simplerule("gconsym", "colon") ++
       simplerule("gconsym", "qconsym")
   )
 
   def keywords(kws: String*) =
     kws.toList.foldMap { kw => lex(kw,string(kw),Some(1)) }
+
+  def keysyms(ksyms: (String,String)*) =
+    ksyms.toList.foldMap { case (name,sym) => lex(name,string(sym),Some(1)) }
 
   def sep1(A: IndexedSymbol, B: IndexedSymbol) =
     CS.and(CS.SameLine(A,B), CS.Eq(CS.RightMostLast(A), CS.LeftMostFirst(B), -2))
@@ -529,8 +553,8 @@ object HaskellGrammar {
     }
     rhsNts.toList.sequence.foldMap {
       rhs =>
-        System.out.println(rhs.flatten.mkString(" "))
+//        System.out.println(rhs.flatten.mkString(" "))
         rule(nonterminal,rhs.flatten.mkString(" "),noaction)
     }
- }
+  }
 }
