@@ -69,20 +69,10 @@ object TestHaskell extends Properties("Haskell") {
         HaskellGrammar.NoAssoc))
     yield HaskellGrammar.grammar(i,a)
 
-  Parser(allprods.toList.foldMap(x => x) ++ HaskellGrammar.lexical)
+  val parser = Parser(allprods.toList.foldMap(x => x) ++ HaskellGrammar.lexical)
 
-//  val parser = Parser(HaskellGrammar.grammar(0) ++ HaskellGrammar.lexical)
-
-  property("bar") =
-    Parser(
-      HaskellGrammar.lex("thing",regex.char('X')) ++
-        HaskellGrammar.lex("comma",regex.char(',')) ++
-        HaskellGrammar.simplerule("things", "thing [comma things]")).parse("things",
-      "X, X, X"
-    ).isDefined
-
-  // property("foo") = parser.parse("moduledef",
-  //   "module Foo where\r\n" ++
-  //     "  import Bar\r\n  import Baz\r\n  import Boo").isDefined
-
+  val src = scala.io.Source.fromFile("/home/phil/proofpeer/proofpeer-indent/foo.hs")
+  val contents = src.mkString
+//  property("fullparse") = parser.parse("moduledef",contents).isDefined
+  property("baz") = parser.parse("exp9","x").isDefined
 }

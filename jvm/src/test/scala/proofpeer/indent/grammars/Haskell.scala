@@ -18,7 +18,7 @@ object HaskellGrammar {
   }
   implicit object GrammarIsMonoid extends Monoid[Grammar] {
     override def append(x: Grammar,y: =>Grammar) = x ++ y
-    override def zero = new Grammar(Vector())
+    override def zero = new Grammar(Set())
   }
 
   def intersperse[A](xs: List[A], sep:A): List[A] =
@@ -147,11 +147,11 @@ object HaskellGrammar {
       lex("opencom", string("{-")) ++
       lex("closecom", string("-}")) ++
       lex("notcomdelimlex", REPEAT1(CHAR(-(Range('{') + Range('-'))))) ++
-      lex("varid", lowerid, Some(0)) ++
+      lex("varid", lowerid) ++
       lex("conid", conid) ++
-      lex("varsym", seq(CHAR(symbol), REPEAT(CHAR(symbol + Range(':')))), Some(0)) ++
-      lex("consym", seq(char(':'), REPEAT(CHAR(symbol + Range(':')))), Some(0)) ++
-      lex("tyvar", lowerid, Some(0)) ++
+      lex("varsym", seq(CHAR(symbol), REPEAT(CHAR(symbol + Range(':'))))) ++
+      lex("consym", seq(char(':'), REPEAT(CHAR(symbol + Range(':'))))) ++
+      lex("tyvar", lowerid) ++
       lex("tycon", conid) ++
       lex("tycls", conid) ++
       // Strictly Haskell98, which does not have hierarchical module names
@@ -186,21 +186,21 @@ object HaskellGrammar {
 
   def withCtx(
     nonterminal: String,
-    nonterminalRep: String,
-    nonterminalsRep: List[String],
-    nonterminalsEnd: String*) = {
+    nonterminalReps: String*) = {
 
-    // Rules of the form:
-    // nonterminals[i] => nonterminal[i]
-    // nonterminals[i] => nonterminal[i] semis nonterminals[i]
+    // Rule of the form:
+    // nonterminals[i] => nonterminal[i] [semis nonterminals[i]]
     val nonterminalsRepNonLayout =
       (for (
-        nonterminalRep <- nonterminalRep :: nonterminalsRep;
-        nonterminalReps = nonterminalRep + "s";
+        nonterminalRep <- nonterminalReps.toList;
+        nonterminalRepMultiple = nonterminalRep + "s";
         rl <- List(
-          simplerule(nonterminalReps, nonterminalRep),
-          simplerule(nonterminalReps,
-            List(nonterminalRep, "semis", nonterminalReps).mkString(" "))))
+          simplerule(nonterminalRepMultiple, nonterminalRep),
+          simplerule(
+            nonterminalRepMultiple,
+            nonterminalRep,
+            "semis",
+            nonterminalRepMultiple)))
       yield rl).suml
 
     // Rules of the form
@@ -209,39 +209,44 @@ object HaskellGrammar {
     //   with nonterminal[i] and nonterminalsLaidout[i] having same LeftMostFirst
     val nonterminalsRepLaidout =
       (for (
-        nonterminalRep <- nonterminalRep :: nonterminalsRep;
-        nonterminalRepsLaidout = nonterminalRep + "sLaidOut";
+        nonterminalRep <- nonterminalReps.toList;
+        nonterminalRepLaidout = nonterminalRep + "sLaidOut";
         rl <- List(
-          simplerule(nonterminalRepsLaidout, nonterminalRep),
-          rule(nonterminalRepsLaidout,
-            List(nonterminalRep, nonterminalRepsLaidout).mkString(" "),
+          simplerule(nonterminalRepLaidout, nonterminalRep),
+          rule(nonterminalRepLaidout,
+            List(nonterminalRep, nonterminalRepLaidout).mkString(" "),
             CS.Eq(
               CS.LeftMostFirst(nonterminalRep),
-              CS.LeftMostFirst(nonterminalRepsLaidout),
+              CS.LeftMostFirst(nonterminalRepLaidout),
               0),
             noaction)))
       yield rl).suml
 
-    simplerule(nonterminal,
-      (List("openctx", "closectx") ++ nonterminalsEnd.toList).mkString(" ")) ++
-    simplerule(nonterminal,
-      ("openctx" ::
-        (nonterminalRep :: nonterminalsRep).map (_ + "s").mkString(" semis ") ::
-        (nonterminalsEnd.toList :+ "closectx")).mkString(" ")) ++
-    (if (nonterminalsEnd.isEmpty) ∅[Grammar] else
-      simplerule(nonterminal, nonterminalsEnd.mkString(" "))) ++
-    rule(nonterminal,
-      (nonterminalRep::
-        ((nonterminalRep::nonterminalsRep).map (_ + "sLaidOut"))).mkString(" "),
-      CS.and(
-        (nonterminalRep::nonterminalsRep).map { nt =>
-          CS.Eq(
-            CS.LeftMostFirst(nonterminalRep),
-            CS.LeftMostFirst(nt + "sLaidOut"),
-            0)}.toVector:_*),
-      noaction) ++
-    nonterminalsRepNonLayout ++
-    nonterminalsRepLaidout
+    val nonterminalSeqs =
+      nonterminalReps.toList.traverse { nt => List(List(nt), List()) }.map(_.flatten)
+
+    val nonLayout =
+      (for (
+        seq <- nonterminalSeqs;
+        seqs = seq.map(_ ++ "s"))
+      yield simplerule(nonterminal,
+        "openctx", seqs.mkString(" semis "), "closectx")
+      ).suml;
+
+    val layout =
+      (for (
+        nt::nts   <- nonterminalSeqs;
+        ntl::ntsl =  (nt::nts).map { _ + "sLaidOut" };
+        constraints =
+          for (ntl_ <- ntsl)
+        yield CS.Eq(CS.LeftMostFirst(ntl), CS.LeftMostFirst(ntl_), 0))
+      yield rule(
+        nonterminal,
+        (ntl::ntsl).mkString(" "),
+        CS.and(constraints:_*),
+        noaction)).suml
+
+    nonterminalsRepNonLayout ++ nonterminalsRepLaidout ++ nonLayout ++ layout
   }
 
   def when[M:Monoid](b:Boolean)(x:M) = if (b) x else ∅[M]
@@ -264,9 +269,6 @@ object HaskellGrammar {
         ("openbrace", "{"),
         ("closebrace", "}"),
         ("semi", ";"),
-        ("semis", "semi [semis]"),
-        ("openctx", "openbrace [semis]"),
-        ("closectx", "[semis] closebrace"),
         ("comma", ","),
         ("ldots", ".."),
         ("bang", "!"),
@@ -280,9 +282,12 @@ object HaskellGrammar {
       ) ++
       lex("plus", char('+'))
     } ++
-      simplerule("moduledef,", "module modid [exports] where body") ++
+      simplerule("openctx", "openbrace [semis]") ++
+      simplerule("closectx", "[semis] closebrace") ++
+      simplerule("semis", "semi [semis]") ++
+      simplerule("moduledef", "module modid [exports] where [body]") ++
       simplerule("moduledef", "body") ++
-      withCtx("body","impdecl",List("topdecl")) ++
+      withCtx("body","impdecl","topdecl") ++
       simplerule("exports", "anexport [comma exports]") ++
       simplerule("anexport", "qvar") ++
       simplerule("anexport", "qtycon") ++
@@ -291,7 +296,8 @@ object HaskellGrammar {
       simplerule("anexport", "qtycls openparen ldots closeparen") ++
       simplerule("anexport", "qtycls openparen qvars closeparen") ++
       simplerule("anexport", "module modid") ++
-      simplerule("impdecl", "import [qualified] modid [as modid] [impspec]") ++
+      simplerule("impdecl", "import [qualified] modid [as modid]" ++
+        "[openparen impspec closeparen]") ++
       simplerule("impspec", "animport [comma impspec]") ++
       simplerule("animport", "var") ++
       simplerule("animport", "tycon") ++
@@ -303,7 +309,6 @@ object HaskellGrammar {
       simplerule("cnames", "cname cnames") ++
       simplerule("cname",  "var") ++
       simplerule("cname",  "con") ++
-      simplerule("topdecls", "topdecl [topdecls]") ++
       simplerule("topdecl", "type simpletype equals thetype") ++
       simplerule("topdecl", "data [context implies] simpletype equals newconstr"
         ++ "[derivingClause]") ++
@@ -312,15 +317,15 @@ object HaskellGrammar {
       simplerule("topdecl", "default typelist") ++
       simplerule("topdecl", "decl") ++
       simplerule("typelist", "thetype [comma typelist]") ++
-      withCtx("decls", "decl", List()) ++
+      withCtx("decls", "decl") ++
       simplerule("decl", "gendecl") ++
       simplerule("decl", "funlhs rhs") ++
       simplerule("decl", "pat0 rhs") ++
-      withCtx("cdecls", "cdecl", List()) ++
+      withCtx("cdecls", "cdecl") ++
       simplerule("cdecl", "gendecl") ++
       simplerule("cdecl", "funlhs rhs") ++
       simplerule("cdecl", "var rhs") ++
-      withCtx("idecls", "idecl", List()) ++
+      withCtx("idecls", "idecl") ++
       simplerule("idecl", "funlhs rhs") ++
       simplerule("idecl", "var rhs") ++
       simplerule("gendecl", "vars hastype [context implies] thetype") ++
@@ -394,7 +399,7 @@ object HaskellGrammar {
       simplerule("exp", "exp0 hastype [context implies] thetype") ++
       simplerule("exp", "exp0") ++
       when (i < 9) {
-        simplerule("exp" + i, "exp" + (i+1), "[qopNoAssoc" + i + "]", "exp" + (i+1)) ++
+        simplerule("exp" + i, "exp" + (i+1), "[qopNoAssoc" + i, "exp" + (i+1) + "]") ++
         simplerule("rexp" + i, "exp" + (i+1), "qopRightAssoc" + i, "rexp" + i)
       } ++
       simplerule("lexp" + i, "lexp" + i, "qopLeftAssoc" + i, "exp" + (i+1)) ++
@@ -424,10 +429,12 @@ object HaskellGrammar {
         simplerule(
           "aexp", "openparen", "qop" + a + i, "exp" + (i+1), "closeparen") ++
         simplerule("aexp", "qopRightAssoc" + i, "rexp" + (i+1)) ++
+        // Differs slightly from the Report, which expresses this with a difference
         simplerule("qop", "unaryneg")
       } ++
       simplerule("aexp", "openparen", "lexp" + i, "qopLeftAssoc" + i, "closeparen") ++
       simplerule("aexp", "qcon openbrace [fbinds] closebrace") ++
+      // Differs slightly from the Report, which expresses this with a difference
       simplerule("aexp", "qvar openbrace fbinds closebrace") ++
       simplerule("tupleexps", "exp [comma tupleexps]") ++
       simplerule("listexps", "exp [comma listexps]") ++
@@ -436,11 +443,11 @@ object HaskellGrammar {
       simplerule("qual", "pat drawfrom exp") ++
       simplerule("qual", "let decls") ++
       simplerule("qual", "exp") ++
-      withCtx("alts", "alt", List()) ++
+      withCtx("alts", "alt") ++
       simplerule("alt", "pat arrow exp [where decls]") ++
       simplerule("alt", "pat gdpat [where decls]") ++
       simplerule("gdpat", "gd arrow exp [gdpat]") ++
-      withCtx("stmts", "stmt", List()) ++
+      withCtx("stmts", "stmt") ++
       simplerule("stmt", "exp") ++
       simplerule("stmt", "pat drawfrom exp") ++
       simplerule("stmt", "let decls") ++
@@ -464,7 +471,7 @@ object HaskellGrammar {
       simplerule("pat10", "gcon apats") ++
       simplerule("apat", "var [at apat]") ++
       simplerule("apat", "gcon") ++
-      simplerule("apat", "gcon openbrace fpats") ++
+      simplerule("apat", "gcon openbrace fpats closebrace") ++
       simplerule("fpats", "fpat [fpats]") ++
       simplerule("fpat", "qvar equals pat") ++
       simplerule("gcon", "openparen closeparen") ++
@@ -553,7 +560,7 @@ object HaskellGrammar {
     }
     rhsNts.toList.sequence.foldMap {
       rhs =>
-//        System.out.println(rhs.flatten.mkString(" "))
+        System.out.println(nonterminal + " " + rhs.flatten.mkString(" "))
         rule(nonterminal,rhs.flatten.mkString(" "),noaction)
     }
   }
