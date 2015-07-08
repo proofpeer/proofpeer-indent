@@ -36,8 +36,6 @@ object TestHaskell extends Properties("Haskell") {
   property("haskString5") = lexer.parse("literal","\"'\"").isDefined
   property("haskString6") = lexer.parse("literal","\"\\\"\"").isDefined
   property("haskString7") = lexer.parse("literal","\"hello world!\"").isDefined
-  property("special1") = lexer.parse("lexeme","(").isDefined
-  property("special2") = lexer.parse("lexeme",";").isDefined
   property("comment1") = lexer.parse("comment","-- this is a comment").isDefined
   property("comment2") = lexer.parse("comment","--").isDefined
   property("comment3") = !lexer.parse("comment","--\r\nnot a comment").isDefined
@@ -59,20 +57,25 @@ object TestHaskell extends Properties("Haskell") {
   property("conid2") = lexer.parse("qconid", "Foo.Bar").isDefined
   property("conid3") = lexer.parse("qconid", "Foo.Bar.Baz").isDefined
 
-  import HaskellGrammar.GrammarIsMonoid
-  val allprods =
-    for (
-      i <- 0 to 9;
-      a <- List(
-        HaskellGrammar.LeftAssoc,
-        HaskellGrammar.RightAssoc,
-        HaskellGrammar.NoAssoc))
-    yield HaskellGrammar.grammar(i,a)
+  val grammar = HaskellGrammar.grammar
 
-  val parser = Parser(allprods.toList.foldMap(x => x) ++ HaskellGrammar.lexical)
-
-  val src = scala.io.Source.fromFile("/home/phil/proofpeer/proofpeer-indent/foo.hs")
+  val src = scala.io.Source.fromFile("/home/phil/proofpeer/proofpeer-indent/bar.hs")
   val contents = src.mkString
-//  property("fullparse") = parser.parse("moduledef",contents).isDefined
-  property("baz") = parser.parse("exp9","x").isDefined
+
+  val earleyAutomaton = new earley.EarleyAutomaton(
+    grammar ++ HaskellGrammar.lexical)
+  val earleyParser = new earley.Earley(earleyAutomaton)
+
+  val doc = Document.fromString(contents)
+
+  // Parse, printing out fixities.
+  earleyParser.parse(doc, "moduledef") match {
+    case Left(p) =>
+      System.out.println("OK, parsed with fixities: " +
+        HaskellGrammar.findNodes(p)(_.symbol == "gendecl").flatMap {
+          tree => tree.getValue[List[HaskellGrammar.FixityDecl]]
+        })
+    case Right(n) =>
+      System.out.println("Failed around: " + doc.character(n-1))
+  }
 }
