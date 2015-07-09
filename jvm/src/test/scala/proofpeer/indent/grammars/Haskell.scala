@@ -71,85 +71,76 @@ object HaskellGrammar {
 
   val noaction = { ctx:ParseContext => null }
 
-  val lexical = (
-    simplerule("program", "lexeme program") ++
-      simplerule("program", "comment program") ++
-      simplerule("program", "lexeme") ++
-      simplerule("program", "comment") ++
-      simplerule("lexeme", "literal") ++
-      simplerule("lexeme", "qvarid") ++
-      simplerule("lexeme", "qconid") ++
-      simplerule("lexeme", "qvarsym") ++
-      simplerule("lexeme", "qconsym") ++
-      simplerule("lexeme", "qtycon") ++
-      simplerule("lexeme", "qtycls") ++
-      simplerule("literal", "integer") ++
-      simplerule("literal", "float") ++
-      simplerule("literal", "whitechar") ++
-      simplerule("literal", "graphicchar") ++
-      simplerule("literal", "string") ++
-      simplerule("comment", "lineComment") ++
-      simplerule("comment", "ncomment") ++
-      rule("lineComment", "dashes", CS.Line("dashes"), noaction) ++
-      rule("lineComment", "dashes anythings",
-        CS.SameLine("dashes", "anythings"), noaction) ++
-      simplerule("anythings", "anything [anythings]") ++
-      simplerule("ncomment", "opencom [comcontent] closecom") ++
-      simplerule("comcontent",  "notcomdelim [comcontent]") ++
-      simplerule("notcomdelim", "ncomment") ++
-      simplerule("notcomdelim", "notcomdelimlex") ++
-      simplerule("qvarid", "conid qualsep qvarid") ++
-      simplerule("qvarid", "varid") ++
-      rule(
-        "qconid",
-        "conid qualsep qconid_0",
-        CS.and(CS.Connect("conid","qualsep"),CS.Connect("qualsep","qconid_0")),
-        noaction) ++
-      simplerule("qconid", "conid") ++
-      simplerule("qvarsym", "conid qualsep qvarsym") ++
-      simplerule("qvarsym", "varsym") ++
-      simplerule("qconsym", "conid qualsep qconsym") ++
-      simplerule("qconsym", "consym") ++
-      simplerule("qtycon", "conid qualsep qtycon") ++
-      simplerule("qtycon", "tycon") ++
-      simplerule("qtycls", "conid qualsep qtycls") ++
-      simplerule("qtycls", "tycls") ++
-      simplerule("qvarsym", "varsym") ++
-      rule(
-        "whitechar",
-        "singlequote_0 singlequote_1",
-        sep1("singlequote_0","singlequote_1"),
-        noaction) ++
-      simplerule("string", "doublequote [stringcontent] doublequote") ++
-      simplerule("stringcontent", "graphics [stringcontent]") ++
-//      lex("special", CHAR(special)) ++
-      lex("dashes", seq(string("--"), REPEAT(char('-'))), Some(1)) ++
-      lex("anything", anything) ++
-      lex("opencom", string("{-"), Some(1)) ++
-      lex("closecom", string("-}"), Some(1)) ++
-      lex("notcomdelimlex", REPEAT1(CHAR(-(Range('{') + Range('-'))))) ++
-      lex("varid", lowerid, Some(0)) ++
-      lex("conid", conid, Some(0)) ++
-      lex("varsym", seq(CHAR(symbol), REPEAT(CHAR(symbol + Range(':')))), Some(0)) ++
-      lex("consym", seq(char(':'), REPEAT(CHAR(symbol + Range(':')))), Some(0)) ++
-      lex("tyvar", lowerid, Some(0)) ++
-      lex("tycon", conid, Some(0)) ++
-      lex("tycls", conid, Some(0)) ++
-      simplerule("qmodid", "modid") ++
-      simplerule("qmodid", "modid qualsep qmodid") ++
-      lex("modid", conid, Some(0)) ++
-      lex("qualsep", char('.')) ++
-      lex("integer", integer) ++
-      lex("digit", chars('0','9')) ++
-      lex("float", float) ++
-      lex("graphicchar", seq(
-        char('\''),
-        (charesc |+| CHAR(graphic - Range('\''))),
-        char('\''))) ++
-      lex("graphics", stringesc |+| REPEAT1(CHAR(graphic - Range('\"')))) ++
-      lex("singlequote", char('\'')) ++
-      lex("doublequote", char('\"'))
-  )
+  val lexical = {
+    simplerule("lexeme", "literal") ++
+    simplerule("lexeme", "qvarid") ++
+    simplerule("lexeme", "qconid") ++
+    simplerule("lexeme", "qvarsym") ++
+    simplerule("lexeme", "qconsym") ++
+    simplerule("lexeme", "qtycon") ++
+    simplerule("lexeme", "qtycls") ++
+    csimplerule("literal", "integer") ++
+    csimplerule("literal", "float") ++
+    csimplerule("literal", "whitechar") ++
+    csimplerule("literal", "graphicchar") ++
+    csimplerule("literal", "string") ++
+    simplerule("comment", "linecomment") ++
+    simplerule("comment", "ncomment") ++
+    simplerule("comments", "[comments] comment") ++
+    rule("linecomment", "dashes anythings",
+      CS.Line("dashes", "anythings"), noaction) ++
+    simplerule("anythings", "") ++
+    rule("anythings", "anythings_0 anything",
+      CS.Line("anythings_0", "anything"), noaction) ++
+    simplerule("ncomment", "opencom [comcontent] closecom") ++
+    simplerule("comcontent",  "notcomdelim [comcontent]") ++
+    simplerule("notcomdelim", "ncomment") ++
+    simplerule("notcomdelim", "notcomdelimlex") ++
+    qualidrule("qvarid", "varid") ++
+    qualidrule("qconid", "conid") ++
+    qualidrule("qvarsym", "varsym") ++
+    qualidrule("qconsym", "consym") ++
+    qualidrule("qtycon", "tycon") ++
+    qualidrule("qtycls", "tycls") ++
+    qualidrule("qvarsym", "varsym") ++
+    qualidrule("qmodid", "modid") ++
+    rule(
+      "whitechar",
+      "singlequote_0 singlequote_1",
+      sep1("singlequote_0","singlequote_1"),
+      noaction) ++
+    simplerule("string", "doublequote [stringcontent] doublequote") ++
+    simplerule("stringcontent", "graphics [stringcontent]") ++
+    lex("dashes", seq(string("--")), Some(2)) ++
+    lex("anything", anything, Some(1)) ++
+    lex("opencom", string("{-"), Some(2)) ++
+    lex("closecom", string("-}"), Some(3)) ++
+    lex("notcomdelimlex",
+      alt(
+        seq(char('{'), CHAR(-(Range('-')))),
+        seq(char('-'), CHAR(-(Range('}')))),
+        REPEAT1(CHAR(-(Range('{') + Range('-'))))),
+      Some(1)) ++
+    lex("varid", lowerid, None) ++
+    lex("conid", conid, None) ++
+    lex("varsym", seq(CHAR(symbol), REPEAT(CHAR(symbol + Range(':')))), None) ++
+    lex("consym", seq(char(':'), REPEAT(CHAR(symbol + Range(':')))), None) ++
+    lex("tyvar", lowerid, None) ++
+    lex("tycon", conid, None) ++
+    lex("tycls", conid, None) ++
+    lex("modid", conid, Some(1)) ++
+    lex("qualsep", char('.')) ++
+    clex("integer", integer) ++
+    clex("digit", chars('0','9')) ++
+    clex("float", float) ++
+    lex("graphicchar", seq(
+      char('\''),
+      (charesc |+| CHAR(graphic - Range('\''))),
+      char('\''))) ++
+    lex("graphics", stringesc |+| REPEAT1(CHAR(graphic - Range('\"')))) ++
+    lex("singlequote", char('\'')) ++
+    lex("doublequote", char('\"'))
+  }
 
   sealed abstract class Assoc
   case object NoAssoc extends Assoc
@@ -221,7 +212,7 @@ object HaskellGrammar {
     nonterminalsRepNonLayout ++ nonterminalsRepLaidout ++ nonLayout ++ layout
   }
 
-  def grammar = {
+  val grammar = {
     val keys = {
       keywords(
         "module","where","import","qualified","as","type","data","deriving",
@@ -260,8 +251,9 @@ object HaskellGrammar {
       simplerule("semis", "semi [semis]") ++
       simplerule(
         "moduledef",
-        "module qmodid [exports] where [body]") ++
-      simplerule("moduledef", "body") ++
+        "[comments] module qmodid [exports] where [body]") ++
+      simplerule("moduledef", "[comments] body") ++
+      simplerule("moduledef", "comments") ++
       withCtx("body","impdecl","topdecl") ++
       simplerule("exports", "openparen [exportlist] [comma] closeparen") ++
       simplerule("exportlist", "anexport [comma exportlist]") ++
@@ -520,6 +512,7 @@ object HaskellGrammar {
       simplerule("gconsym", "colon") ++
       simplerule("gconsym", "qconsym")
     }
+    lexical ++
     keys ++ rules1 ++ rules2 ++ rules3 ++ rules4 ++ rules5 ++ rules6 ++ rules7 ++
     rules8 ++ rules9 ++
     (for (
@@ -534,7 +527,8 @@ object HaskellGrammar {
   def fixity(ctx:ParseContext) = {
     val ops = ctx.result("ops")
     val syms =
-      findNodes(ops) { tree => tree.symbol == "varsym" || tree.symbol == "consym"
+      findNodes(ops) {
+        tree => tree.symbol == "varsymraw" || tree.symbol == "consymraw"
       }.map {
         case TerminalNode(_, span) =>
           ctx.document.getText(span)
@@ -551,10 +545,10 @@ object HaskellGrammar {
 
   // Helpers
   def keywords(kws: String*) =
-    kws.toList.foldMap { kw => lex(kw,string(kw),Some(1)) }
+    kws.toList.foldMap { kw => clex(kw,string(kw),None) }
 
   def keysyms(ksyms: (String,String)*) =
-    ksyms.toList.foldMap { case (name,sym) => lex(name,string(sym),Some(1)) }
+    ksyms.toList.foldMap { case (name,sym) => clex(name,string(sym),None) }
 
   def sep1(A: IndexedSymbol, B: IndexedSymbol) =
     CS.and(CS.SameLine(A,B), CS.Eq(CS.RightMostLast(A), CS.LeftMostFirst(B), -2))
@@ -606,4 +600,68 @@ object HaskellGrammar {
       case NonterminalNode(_, _, _, rhs: Vector[ParseTree], _) => rhs.toList
       case _ => List()
     }
+
+  def clex(terminal: String, regexp: RegularExpr): Grammar =
+    clex(terminal, regexp, None)
+
+  def clex(terminal: String, regexp: RegularExpr, priority: Option[Int]): Grammar = {
+    simplerule(
+      terminal,
+      terminal + "raw",
+      "[comments]") ++
+    lex(terminal + "raw", regexp, priority)
+  }
+  def csimplerule(symbol: String, rhs: String): Grammar = {
+    simplerule(symbol, rhs, "[comments]")
+  }
+
+  def qualidrule(symbol: String, unqualifiedSymbol: String) = {
+    val symbol0 = symbol + "raw_0"
+    simplerule(symbol, symbol + "raw", "[comments]") ++
+    rule(symbol, "conid qualsep" + " " + symbol0,
+      CS.and(
+           CS.Connect("conid","qualsep"),
+           CS.Connect("qualsep",symbol0)),
+      noaction) ++
+    simplerule(symbol + "raw", unqualifiedSymbol)
+  }
+
+  def foo = {
+    simplerule(
+      "moduledef",
+      "comments") ++
+    simplerule(
+      "moduledef",
+      "[comments] module qmodid where") ++
+    keywords("module", "where") ++
+    simplerule("qmodid", "[comments] qmodidraw") ++
+    simplerule("qmodidraw", "conid qualsep qmodidraw") ++
+    simplerule("qmodidraw", "modid") ++
+    lex("conid", conid, None) ++
+    simplerule("comment", "linecomment") ++
+    simplerule("comment", "ncomment") ++
+    simplerule("comments", "[comments] comment") ++
+    rule("linecomment", "dashes anythings",
+      CS.Line("dashes", "anythings"), noaction) ++
+    simplerule("anythings", "") ++
+    rule("anythings", "anythings_0 anything",
+      CS.Line("anythings_0", "anything"), noaction) ++
+    simplerule("ncomment", "opencom [comcontent] closecom") ++
+    simplerule("comcontent",  "notcomdelim [comcontent]") ++
+    simplerule("notcomdelim", "ncomment") ++
+    simplerule("notcomdelim", "notcomdelimlex") ++
+    lex("modid", conid, None) ++
+    lex("dashes", string("--"), None) ++
+    lex("anything", anything, None) ++
+    lex("opencom", string("{-"), None) ++
+    lex("closecom", string("-}"), None) ++
+    lex("notcomdelimlex",
+      alt(
+        seq(char('{'), CHAR(-(Range('-')))),
+        seq(char('-'), CHAR(-(Range('}')))),
+        CHAR(-(Range('{') + Range('-')))),
+      None
+    ) ++
+    lex("qualsep", char('.'))
+  }
 }
