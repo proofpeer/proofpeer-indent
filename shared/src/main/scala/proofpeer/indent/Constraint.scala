@@ -79,7 +79,7 @@ object Constraint {
     Eq(LastRow(A), FirstRow(B), 0)
     
   /** A consists of a single line only. */
-  def Line(A : IndexedSymbol) : Constraint  = 
+  def Line(A : IndexedSymbol) : Constraint = 
     SameLine(A, A)    
     
   /** A and B both fit in the same single line. */
