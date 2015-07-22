@@ -160,20 +160,22 @@ final class Earley(ea : EarleyAutomaton) {
 
   def scan(document : Document, stream : DocumentCharacterStream, bins : Array[Bin], k : Int, terminals : Set[Int]) {
     if (terminals == null || terminals.isEmpty) return
+
+    import scala.collection.mutable.{Map => MutableMap}
     
     // check which terminals actually can be scanned from position k on
-    var scans : Map[Int, Int] = Map()
+    var scans : MutableMap[Int, Int] = MutableMap()
     for (terminal <- terminals) {
       val dfa = ea.dfaOfTerminal(terminal)
       stream.setPosition(k)
       val (len, recognizedTerminals) = DFA.run(dfa, stream)
       if (len > 0 && recognizedTerminals.contains(terminal)) {
-        scans = scans + (terminal -> len)
+        scans += (terminal -> len)
       } 
     }
 
     // check which scans are compatible with some layout 
-    var scopes : Map[Int, (Int, Set[Int])] = Map()
+    var scopes : MutableMap[Int, (Int, Set[Int])] = MutableMap()
     val (row, column, _) = document.character(k)
     val (_, column0, _) = document.character(document.firstPositionInRow(row))
     var item = bins(k).processedItems
