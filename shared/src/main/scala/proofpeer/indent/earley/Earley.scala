@@ -208,25 +208,23 @@ final class Earley(ea : EarleyAutomaton) {
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminals(_recognizedTerminals)
-      if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
-        val span = Span(column0, row, column, k, len)
-        var item = bins(k).processedItems
-        var destBin = bins(k + len)
-        if (destBin == null) {
-          destBin = new Bin(pool)
-          bins(k + len) = destBin
-        }
-        while (item != null) {
-          val coreItem = ea.coreItemOf(item)
-          if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
-            val layout = Span.addToLayout(item.origin, coreItem.includes, item.layout, span)
-            val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
-            if (nextCoreItem.evalConstraint(layout)) {
-              destBin.addItem(coreItem.nextCoreItem, item.origin, layout)
-            }
+      val span = Span(column0, row, column, k, len)
+      var item = bins(k).processedItems
+      var destBin = bins(k + len)
+      if (destBin == null) {
+        destBin = new Bin(pool)
+        bins(k + len) = destBin
+      }
+      while (item != null) {
+        val coreItem = ea.coreItemOf(item)
+        if (coreItem.nextSymbol < 0 && recognizedTerminals.contains(coreItem.nextSymbol)) {
+          val layout = Span.addToLayout(item.origin, coreItem.includes, item.layout, span)
+          val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
+          if (nextCoreItem.evalConstraint(layout)) {
+            destBin.addItem(coreItem.nextCoreItem, item.origin, layout)
           }
-          item = item.nextItem
         }
+        item = item.nextItem
       }
     } 
   }
