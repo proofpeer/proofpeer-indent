@@ -114,34 +114,35 @@ final class EarleyAutomaton(val grammar : Grammar) {
     (coreItems, idOfCoreItem)
   }
 
-  val (numScopes, dfas, scopeOfTerminal) = {
-    var scopes : Map[String, (Int, List[(Int, RegularExpr)])] = Map()
-    var scopesOfTerminals : Array[Int] = new Array(terminalOfId.size)
+  val (numScopes, scopeOfTerminal, dfaOfTerminal) = {
+    var scopes : Map[String, Int] = Map()
+    val scopesOfTerminals : Array[Int] = new Array(terminalOfId.size)
+    val dfas = new Array[DFA](terminalOfId.size)
     var scope = 0
     for (terminal <- grammar.terminals) {
       val scanrule = grammar.scanrules(terminal)
       val terminalId = idOfTerminal(terminal)
+      val terminalIndex = (-terminalId) - 1
       val entry = (terminalId, scanrule.regex)
       scopes.get(scanrule.scope) match {
         case None => 
-          scopes += (scanrule.scope -> (scope, List(entry)))
-          scopesOfTerminals((-terminalId) - 1) = scope
+          scopes += (scanrule.scope -> scope)
+          scopesOfTerminals(terminalIndex) = scope
           scope += 1
-        case Some((scope, rules)) => 
-          scopes += (scanrule.scope -> (scope, entry :: rules))
-          scopesOfTerminals((-terminalId) - 1) = scope
+        case Some(scope) => 
+          scopesOfTerminals(terminalIndex) = scope
       }
+      val nfa = NFA.fromRegularExprs(List((terminalId, scanrule.regex)))
+      val dfa = DFA.fromNFA(nfa)
+      dfas(terminalIndex) = dfa
     }
     def scopeOfTerminal(terminalId : Int) : Int = {
       scopesOfTerminals((-terminalId) - 1)
     }
-    val dfas = new Array[DFA](scopes.size)
-    for ((_, (scope, rules)) <- scopes) {
-      val nfa = NFA.fromRegularExprs(rules)
-      val dfa = DFA.fromNFA(nfa)
-      dfas(scope) = dfa
+    def dfaOfTerminal(terminalId : Int) : DFA = {
+      dfas((-terminalId) - 1)
     }
-    (scopes.size, dfas, scopeOfTerminal _)
+    (scopes.size, scopeOfTerminal _, dfaOfTerminal _)
   }
 
   val terminalPriority = {

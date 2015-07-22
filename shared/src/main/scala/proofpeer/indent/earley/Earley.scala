@@ -160,20 +160,51 @@ final class Earley(ea : EarleyAutomaton) {
 
   def scan(document : Document, stream : DocumentCharacterStream, bins : Array[Bin], k : Int, terminals : Set[Int]) {
     if (terminals == null || terminals.isEmpty) return
-    var scopes : Map[Int, Set[Int]] = Map()
+    
+    // check which terminals actually can be scanned from position k on
+    var scans : Map[Int, Int] = Map()
     for (terminal <- terminals) {
-      val scope = ea.scopeOfTerminal(terminal)
-      scopes.get(scope) match {
-        case None => scopes += (scope -> Set(terminal))
-        case Some(ts) => scopes += (scope -> (ts + terminal))
-      }
+      val dfa = ea.dfaOfTerminal(terminal)
+      stream.setPosition(k)
+      val (len, recognizedTerminals) = DFA.run(dfa, stream)
+      if (len > 0 && recognizedTerminals.contains(terminal)) {
+        scans = scans + (terminal -> len)
+      } 
     }
+
+    // check which scans are compatible with some layout 
+    var scopes : Map[Int, (Int, Set[Int])] = Map()
     val (row, column, _) = document.character(k)
     val (_, column0, _) = document.character(document.firstPositionInRow(row))
-    for ((scope, terminals) <- scopes) {
-      val dfa = ea.dfas(scope)
-      stream.setPosition(k)
-      val (len, _recognizedTerminals) = DFA.run(dfa, stream, terminals)
+    var item = bins(k).processedItems
+    while (item != null) {
+      val coreItem = ea.coreItemOf(item)
+      if (coreItem.nextSymbol < 0) {
+        val terminal = coreItem.nextSymbol
+        scans.get(terminal) match {
+          case None =>
+          case Some(len) =>
+            val span = Span(column0, row, column, k, len) 
+            val layout = Span.addToLayout(item.origin, coreItem.includes, item.layout, span)
+            val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
+            if (nextCoreItem.evalConstraint(layout)) {
+              val scope = ea.scopeOfTerminal(terminal)
+              scopes.get(scope) match {
+                case None => scopes += (scope -> (len, Set(terminal)))
+                case Some((l, ts)) => 
+                  if (len == l)
+                    scopes += (scope -> (l, ts + terminal))
+                  else if (len > l)
+                    scopes += (scope -> (len, Set(terminal)))
+              }
+            }            
+        }
+      }
+      item = item.nextItem
+    }
+
+    // create new items
+    for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminals(_recognizedTerminals)
       if (recognizedTerminals != null && !recognizedTerminals.isEmpty) {
         val span = Span(column0, row, column, k, len)
@@ -195,7 +226,7 @@ final class Earley(ea : EarleyAutomaton) {
           item = item.nextItem
         }
       }
-    }
+    } 
   }
 
   def recognizedNonterminals(bin : Bin) : Set[Int] = {
