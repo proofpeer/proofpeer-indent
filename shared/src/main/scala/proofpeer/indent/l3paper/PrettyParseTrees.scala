@@ -40,7 +40,7 @@ class Graph(document : Document) {
     cacheTerminals.get(key) match {
       case Some(terminalNode) => terminalNode
       case None =>
-        val text = document.getText(from, to - from + 1)
+        val text = document.getText(from, to - from)
         val terminalNode = Node.Terminal(getNextId(), terminal, text, from, to)
         cacheTerminals += (key -> terminalNode)
         _nodes += (terminalNode.id -> terminalNode)

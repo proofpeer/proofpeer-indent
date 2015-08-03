@@ -312,6 +312,7 @@ final class Earley(ea : EarleyAutomaton) {
       def mkTree(foundItem : Item) : NonterminalNode = {
         val coreItem = ea.coreItemOf(foundItem)
         var subtrees = new Array[ParseTree](coreItem.rhs.size)
+        var hasAmbiguities = false
         for (i <- 0 until subtrees.size) {
           val symbol = coreItem.rhs(i)
           val span = foundItem.layout(i)
@@ -319,6 +320,7 @@ final class Earley(ea : EarleyAutomaton) {
             subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
           else 
             subtrees(i) = getParseTree(symbol, span.firstIndexIncl, span.lastIndexExcl)
+          hasAmbiguities = hasAmbiguities || subtrees(i).hasAmbiguities
         }
         val ruleindex = coreItem.ruleindex
         val parserule = grammar.parserules(nonterminalSymbol)(ruleindex)
@@ -337,7 +339,7 @@ final class Earley(ea : EarleyAutomaton) {
           val endPosition = ep_ 
           def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
         }
-        val value = parserule.action(new Context())
+        val value = if (hasAmbiguities) null else parserule.action(new Context())
         NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
       }
       foundItems match {
