@@ -50,6 +50,10 @@ trait ParseContext extends Dynamic {
 case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], includes : Vector[Boolean], constraint : Constraint, 
   action : ParseContext => Any) extends Rule
 
+trait AmbiguityResolution {
+  def computeValue(nonterminal : String, span : Span, alternatives : Vector[ParseTree]) : Any
+}
+
 sealed trait GrammarError 
 
 object GrammarError {
@@ -84,11 +88,18 @@ object GrammarError {
 
 }
 
-class Grammar(val rules : Vector[Rule])
+class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[AmbiguityResolution])
 {
 
     def ++ (other : Grammar) : Grammar = {
-      new Grammar(rules ++ other.rules)
+      val r = 
+        (ambiguityResolution, other.ambiguityResolution) match {
+          case (None, r) => r
+          case (r, None) => r
+          case (u, v) if u == v => u
+          case _ => throw new RuntimeException("incompatible ambiguity resolutions")
+        }
+      new Grammar(rules ++ other.rules, r)
     }
 
     private def check() : Vector[GrammarError] = {
@@ -240,6 +251,13 @@ class Grammar(val rules : Vector[Rule])
 }
 
 object Grammar {
-  def apply(rules : Rule*) : Grammar = new Grammar(rules.toVector)
+  def apply(rules : Rule*) : Grammar = new Grammar(rules.toVector, None)
+  def apply(ambiguityResolution : AmbiguityResolution) : Grammar = new Grammar(Vector(), Some(ambiguityResolution))
+  def apply(r : (String, Span, Vector[ParseTree]) => Any) : Grammar = 
+    apply(
+      new AmbiguityResolution { 
+        def computeValue(nonterminal : String, span : Span, trees : Vector[ParseTree]) : Any = 
+          r(nonterminal, span, trees)
+      })
 }
 

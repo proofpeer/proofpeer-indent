@@ -277,6 +277,7 @@ final class Earley(ea : EarleyAutomaton) {
   }
 
   private class ParseTreeConstruction(document : Document, bins : Array[Bin]) {
+
     import scala.collection.mutable.{Map => MutableMap}
     private var cache : MutableMap[(Int, Int, Int), ParseTree] = MutableMap()
 
@@ -298,6 +299,7 @@ final class Earley(ea : EarleyAutomaton) {
       */
     def constructParseTree(nonterminal : Int, startPosition : Int, endPosition : Int) : ParseTree = {
       val grammar = ea.grammar
+      val ambiguityResolution = grammar.ambiguityResolution
       val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
       val bin = bins(endPosition)
       var item = bin.processedItems
@@ -339,7 +341,11 @@ final class Earley(ea : EarleyAutomaton) {
           val endPosition = ep_ 
           def result(indexedSymbol : IndexedSymbol) = subtrees(rhsIndices(indexedSymbol))           
         }
-        val value = if (hasAmbiguities) null else parserule.action(new Context())
+        val value = 
+          if (hasAmbiguities && !ambiguityResolution.isDefined) 
+            null 
+          else 
+            parserule.action(new Context())
         NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
       }
       foundItems match {
@@ -349,7 +355,11 @@ final class Earley(ea : EarleyAutomaton) {
           // to fix: if multiple spans are found here, not all of them might work for the constraint
           val trees = foundItems.map(mkTree _).toVector
           val node = trees.head
-          AmbiguousNode(node.nonterminal, node.span, trees)
+          if (ambiguityResolution.isDefined) {
+            val v = ambiguityResolution.get.computeValue(node.nonterminal, node.span, trees)
+            AmbiguousNode(node.nonterminal, node.span, trees, v)
+          } else 
+            AmbiguousNode(node.nonterminal, node.span, trees, null)
       }
     }
 

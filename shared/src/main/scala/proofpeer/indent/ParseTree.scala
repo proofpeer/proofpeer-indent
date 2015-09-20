@@ -9,11 +9,13 @@ sealed trait ParseTree {
   def countTrees : Int
 }
 
-final case class AmbiguousNode(nonterminal : String, span : Span, alternatives : Vector[NonterminalNode]) extends ParseTree {
+final case class AmbiguousNode(nonterminal : String, span : Span, alternatives : Vector[NonterminalNode],
+  value : Any) extends ParseTree 
+{
   def symbol = nonterminal
   def hasAmbiguities = true
   def ambiguities = List(this)
-  def getValue[T] = throw new RuntimeException("AmbiguousNode (nonterminal="+nonterminal+",span="+span+") has no value")
+  def getValue[T] = value.asInstanceOf[T]
   lazy val countTrees : Int = {
     var c : Int = 0
     for (alternative <- alternatives) c += alternative.countTrees
