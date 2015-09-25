@@ -10,6 +10,7 @@ package proofpeer.indent
 final case class Span(
   var firstRow : Int,
   var lastRow : Int,
+  var maxRowGap : Int,
   var leftMostInFirst : Int,
   var leftMost : Int,
   var leftMostFirst : Int,
@@ -24,6 +25,7 @@ final case class Span(
     if (firstRow < 0) {
       firstRow = s.firstRow
       lastRow = s.lastRow
+      maxRowGap = s.maxRowGap
       leftMostInFirst = s.leftMostInFirst
       leftMost = s.leftMost
       leftMostFirst = s.leftMostFirst
@@ -40,6 +42,9 @@ final case class Span(
               leftMostRest 
             else s.leftMost
           } else s.leftMostRest
+        var rowgap = s.firstRow - lastRow - 1
+        if (s.maxRowGap > rowgap) rowgap = s.maxRowGap
+        if (rowgap > maxRowGap) maxRowGap = rowgap 
         lastRow = s.lastRow
         leftMost = if (leftMost <= s.leftMost) leftMost else s.leftMost
         rightMostLast = s.rightMostLast
@@ -65,16 +70,16 @@ final case class Span(
 final object Span {
 
   def apply(leftMostInRow : Int, row : Int, column : Int, firstIndex : Int, len : Int = 1) : Span = {
-    Span(row, row, leftMostInRow, column, column, -1, column + len - 1, firstIndex, firstIndex + len)
+    Span(row, row, 0, leftMostInRow, column, column, -1, column + len - 1, firstIndex, firstIndex + len)
   }
 
   def apply(span : Span) : Span = {
     import span._
-    Span(firstRow, lastRow, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstIndexIncl, lastIndexExcl)
+    Span(firstRow, lastRow, maxRowGap, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstIndexIncl, lastIndexExcl)
   }
 
   def nullSpan(firstIndexIncl : Int, lastIndexIncl : Int) : Span = {
-    Span(-1, -1, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
+    Span(-1, -1, 0, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
   }
 
   type Layout = Vector[Span] 
@@ -122,5 +127,20 @@ final object Span {
   }
 
   def getSpanOfLayout(layout : Layout) : Span = layout(layout.size - 1)
+
+  def addSpans(s1 : Span, s2 : Span) : Span = {
+    if (s1 != null && s2 != null) {
+      val s = Span(s1)
+      s.addBehind(s2)
+      s
+    } else {
+      if (s2 != null) 
+        Span(s2)
+      else if (s1 != null)
+        Span(s1)
+      else 
+        null
+    }
+  }
 
 }

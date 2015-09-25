@@ -51,11 +51,19 @@ object Constraint {
     def get(span : Span) : Option[Int] 
   }
 
+  /** Always 0 for any span. */
+  final case object Zero extends LayoutQualifier { 
+    def get(s : Span) = Some(0)
+  }
+
   /** Row of the first line of s. */
   final case object FirstRow extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.firstRow) }
 
   /** Row of the last line of s. */
   final case object LastRow extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.lastRow) }
+
+  /** Maximum number of consecutive empty rows within s. */
+  final case object MaxRowGap extends LayoutQualifier { def get(s : Span) = Some(s.maxRowGap) }
 
   /** Column of first non-whitespace character in the first line of s. */ 
   final case object LeftMostInFirst extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.leftMostInFirst) }
