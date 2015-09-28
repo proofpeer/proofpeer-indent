@@ -1,6 +1,5 @@
 package proofpeer.indent
 
-import proofpeer.indent.regex.RegularExpr
 import scala.language.dynamics
 
 /** IndexedSymbols are symbols that carry an optional index tag.
@@ -20,7 +19,8 @@ sealed trait Rule {
   def symbol : String
 }
 
-case class ScanRule(symbol : String, scope : String, priority : Option[Int], regex : RegularExpr) extends Rule
+
+case class ScanRule(symbol : String, scope : String, priority : Option[Int], lexer : Lexer) extends Rule
 
 trait ParseContext extends Dynamic {
   def result(indexedSymbol : IndexedSymbol) : ParseTree
@@ -47,8 +47,8 @@ trait ParseContext extends Dynamic {
 
 }
 
-case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], includes : Vector[Boolean], constraint : Constraint, 
-  action : ParseContext => Any) extends Rule
+case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], includes : Vector[Boolean], 
+  params : Vector[ParseParam], constraint : Constraint, action : ParseContext => Any) extends Rule
 
 trait AmbiguityResolution {
   def computeValue(nonterminal : String, span : Span, alternatives : Vector[ParseTree]) : Any
@@ -62,10 +62,6 @@ object GrammarError {
     override def toString : String = "Terminal '" + symbol +"' has " + rules.size + " scanrules associated with it."
   }
 
-  case class ScanruleMatchesEmpty(symbol : String, rule : Int) extends GrammarError {
-    override def toString : String = "Terminal '" + symbol +"' matches the empty string."
-  }
-
   case class NonterminalIsTerminal(symbol : String, parserules : List[Int], scanrules : List[Int]) extends GrammarError {
     override def toString : String = "Symbol '" + symbol +"' is used both as nonterminal and as terminal."
   }
@@ -74,12 +70,16 @@ object GrammarError {
     override def toString : String = "The symbol '" + unknownSymbol + "' used in the definition of '" + symbol +"' is unknown."
   }
 
-  case class UnknownSymbolInConstraint(unknownSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
-    override def toString : String = "The symbol '" + unknownSymbol + "' is referenced in the constraints but doesn't appear in the definition of '" + symbol + "'."    
+  case class UnknownLayoutSymbol(unknownSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
+    override def toString : String = "The symbol '" + unknownSymbol + "' is referenced in the constraints / parameters but doesn't appear in the definition of '" + symbol + "'."    
   }
 
-  case class AmbiguousSymbolInConstraint(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
-    override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in the constraints but is ambiguous in the definition of '" + symbol + "'."    
+  case class AmbiguousLayoutSymbol(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
+    override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in the constraints / parameters but is ambiguous in the definition of '" + symbol + "'."    
+  }
+
+  case class UnavailableLayoutSymbol(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
+    override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in one of the parameters but is not available at that point in the definition of '" + symbol + "'."    
   }
 
   case class IncludesMismatch(symbol : String, includesFound : Int, includesExpected : Int, rule : Int) extends GrammarError {
@@ -115,26 +115,36 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               case None => parseSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
-            val symbols = Constraint.collectSymbols(rule.constraint)
+            val symbols = Constraint.collectSymbols(rule.constraint) ++ ParseParam.collectSymbols(rule.params)
             val indexedSymbol = IndexedSymbol(rule.symbol, None)
             val symbolsOfRule = rule.rhs :+ indexedSymbol
             val frequency = symbolsOfRule.groupBy(l => l).map(t => (t._1, t._2.size))
             for (symbol <- symbols) {
               frequency.get(symbol) match {
-                case None => errors :+= UnknownSymbolInConstraint(symbol, rule.symbol, ruleindex)
+                case None => errors :+= UnknownLayoutSymbol(symbol, rule.symbol, ruleindex)
                 case Some(f) =>
-                  if (f != 1) errors :+= AmbiguousSymbolInConstraint(symbol, rule.symbol, ruleindex)
+                  if (f != 1) errors :+= AmbiguousLayoutSymbol(symbol, rule.symbol, ruleindex)
               }
             }
             if (rule.rhs.size != rule.includes.size) 
-              errors :+= IncludesMismatch(rule.symbol, rule.includes.size, rule.rhs.size, ruleindex)
+              errors :+= IncludesMismatch(rule.symbol, rule.includes.size, rule.rhs.size, ruleindex) 
+
+            var paramIndex = 0
+            var parsedSymbols : Set[IndexedSymbol] = Set()
+            while (paramIndex < rule.params.size) {
+              val usedSymbols = ParseParam.collectSymbols(rule.params(paramIndex))
+              if (!(usedSymbols subsetOf parsedSymbols)) {
+                for (s <- usedSymbols -- parsedSymbols) 
+                  errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
+              }
+              parsedSymbols = parsedSymbols + rule.rhs(paramIndex)
+              paramIndex = paramIndex + 1
+            }
           case rule : ScanRule =>
             scanSymbols.get(rule.symbol) match {
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => scanSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
-            if (proofpeer.indent.regex.matchesEmpty(rule.regex))
-              errors :+= ScanruleMatchesEmpty(rule.symbol, ruleindex)
         }
         ruleindex += 1
       }

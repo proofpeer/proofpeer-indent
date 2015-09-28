@@ -1,7 +1,6 @@
 package proofpeer.indent.earley
 
 import proofpeer.indent._
-import proofpeer.indent.regex._
 
 final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : Int) {
   var rhs : Vector[Int] = null
@@ -10,7 +9,9 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
-  var evalConstraint : Span.Layout => Boolean = layout => true
+  var evalConstraint : (Int, Span.Layout) => Boolean = (param : Int, layout : Span.Layout) => true 
+  var evalParam : (Int, Span.Layout, Int) => Int = 
+    { case (param, layout, i) => Earley.DEFAULT_PARAM }
 } 
 
 final class EarleyAutomaton(val grammar : Grammar) {
@@ -57,6 +58,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
       for (rule <- rules) {
         val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
         val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
+        val evalParam = ParseParam.evalParams(rule.params, s => rhsIndices(s))
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           if (Earley.debug)
@@ -80,14 +82,16 @@ final class EarleyAutomaton(val grammar : Grammar) {
           }
           Constraint.evalConstraint(rule.constraint, f) match {
             case Some(eval) => 
-              coreItem.evalConstraint = layout => {
-                eval(layout) match {
-                  case Some(q) => q
-                  case None => true
-                }
+              coreItem.evalConstraint = { 
+                case (param, layout) => 
+                  eval(param, layout) match {
+                    case Some(q) => q
+                    case None => true
+                  }
               }
             case _ =>
           }
+          coreItem.evalParam = evalParam
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)
         }
@@ -114,16 +118,16 @@ final class EarleyAutomaton(val grammar : Grammar) {
     (coreItems, idOfCoreItem)
   }
 
-  val (numScopes, scopeOfTerminal, dfaOfTerminal) = {
+  val (numScopes, scopeOfTerminal, lexerOfTerminal) = {
     var scopes : Map[String, Int] = Map()
     val scopesOfTerminals : Array[Int] = new Array(terminalOfId.size)
-    val dfas = new Array[DFA](terminalOfId.size)
+    val lexers = new Array[Lexer](terminalOfId.size)
     var scope = 0
     for (terminal <- grammar.terminals) {
       val scanrule = grammar.scanrules(terminal)
       val terminalId = idOfTerminal(terminal)
       val terminalIndex = (-terminalId) - 1
-      val entry = (terminalId, scanrule.regex)
+      val entry = (terminalId, scanrule.lexer)
       scopes.get(scanrule.scope) match {
         case None => 
           scopes += (scanrule.scope -> scope)
@@ -132,17 +136,15 @@ final class EarleyAutomaton(val grammar : Grammar) {
         case Some(scope) => 
           scopesOfTerminals(terminalIndex) = scope
       }
-      val nfa = NFA.fromRegularExprs(List((terminalId, scanrule.regex)))
-      val dfa = DFA.fromNFA(nfa)
-      dfas(terminalIndex) = dfa
+      lexers(terminalIndex) = scanrule.lexer
     }
     def scopeOfTerminal(terminalId : Int) : Int = {
       scopesOfTerminals((-terminalId) - 1)
     }
-    def dfaOfTerminal(terminalId : Int) : DFA = {
-      dfas((-terminalId) - 1)
+    def lexerOfTerminal(terminalId : Int) : Lexer = {
+      lexers((-terminalId) - 1)
     }
-    (scopes.size, scopeOfTerminal _, dfaOfTerminal _)
+    (scopes.size, scopeOfTerminal _, lexerOfTerminal _)
   }
 
   val terminalPriority = {
@@ -172,6 +174,12 @@ final class EarleyAutomaton(val grammar : Grammar) {
       }
     }
     nonprio ++ terminalsWithHighestPrio
+  }
+
+  def prioritizeTerminalsWithParams(terminalsWithParams : Set[(Int, Int)]) : Set[(Int, Int)] = {
+    val terminals = terminalsWithParams.map(x => x._1)
+    val prioritizedTerminals = prioritizeTerminals(terminals)
+    terminalsWithParams.filter(t => prioritizedTerminals.contains(t._1))
   }
 
   def coreItemOf(item : Earley.Item) : CoreItem = coreItems(item.coreItemId)

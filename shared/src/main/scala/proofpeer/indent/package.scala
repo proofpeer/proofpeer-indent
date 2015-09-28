@@ -79,18 +79,23 @@ package object indent {
     }
   }
 
+  def lexrule(terminal : String, lexer : Lexer, priority : Option[Int] = None, scope : String = "") : Grammar = {
+    Grammar(ScanRule(terminal, scope, priority, lexer))
+  }
+
   def rule(terminal : String, rhs : regex.RegularExpr, priority : Option[Int] = None, scope : String = "") : Grammar = {
-    Grammar(ScanRule(terminal, scope, priority, rhs))
+    Grammar(ScanRule(terminal, scope, priority, Lexer.untilWhitespace(rhs, false)))
   }
 
   def rule(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {
     val (r, i) = string2rhsi(rhs)
-    Grammar(ParseRule(nonterminal, r, i, Constraint.unconstrained, action))
+    Grammar(ParseRule(nonterminal, r, i, ParseParam.noParams(r.length), 
+      Constraint.unconstrained, action))
   }
 
   def rule(nonterminal : String, rhs : String, constraint : Constraint, action : ParseContext => Any) : Grammar = {
     val (r, i) = string2rhsi(rhs)
-    Grammar(ParseRule(nonterminal, r, i, constraint, action))    
+    Grammar(ParseRule(nonterminal, r, i, ParseParam.noParams(r.length), constraint, action))    
   }
 
  
