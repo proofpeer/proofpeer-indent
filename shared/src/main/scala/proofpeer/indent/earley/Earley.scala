@@ -8,7 +8,7 @@ object Earley {
 
   var debug = false
 
-  final val DEFAULT_PARAM = -1
+  final val DEFAULT_PARAM = ParseParam.NIL
 
   final class Item(val coreItemId : Int, val param : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item) {
     override def toString : String = {

@@ -50,7 +50,7 @@ object Constraint {
 
   /** Denotes integer typed properties of the geometry of s */
   sealed abstract class LayoutQualifier {
-    def apply(indexedSymbol : IndexedSymbol) : LayoutValue = LayoutEntity(this, indexedSymbol)
+    def apply(indexedSymbol : IndexedSymbol) : LayoutEntity = LayoutEntity(this, indexedSymbol)
     def get(span : Span) : Option[Int] 
   }
 

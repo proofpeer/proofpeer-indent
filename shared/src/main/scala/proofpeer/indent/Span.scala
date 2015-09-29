@@ -79,7 +79,7 @@ final object Span {
   }
 
   def nullSpan(firstIndexIncl : Int, lastIndexIncl : Int) : Span = {
-    Span(-1, -1, 0, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
+    Span(-1, -1, -1, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
   }
 
   type Layout = Vector[Span] 
