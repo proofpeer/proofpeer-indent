@@ -40,8 +40,7 @@ object GrammarSyntax {
 
   private def r(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {
     val r = string2rhs(rhs)
-    val i = Vector.fill(r.length)(true)
-    Grammar(ParseRule(nonterminal, r, i, ParseParam.noParams(r.length), 
+    Grammar(ParseRule(nonterminal, r, ParseParam.noParams(r.length), 
       Constraint.unconstrained, action))
   }
 

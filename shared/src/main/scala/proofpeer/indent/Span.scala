@@ -92,35 +92,27 @@ final object Span {
     return true
   }
 
-  def emptyLayout(firstIndexIncl : Int, includes : Vector[Boolean]) : Layout = {
-    if (includes.size > 0) Vector()
-    else Vector(Span.nullSpan(firstIndexIncl, firstIndexIncl))
+  def emptyLayout(firstIndexIncl : Int, rhsSize : Int) : Layout = {
+    if (rhsSize > 0) Vector() else Vector(Span.nullSpan(firstIndexIncl, firstIndexIncl))
   }
 
-  def addToLayout(firstTokenIncl : Int, includes : Vector[Boolean], 
-    layout : Layout, span : Span) : Layout = 
+  def addToLayout(firstTokenIncl : Int, rhsSize : Int, layout : Layout,  span : Span) : Layout = 
   {
     if (span == null) throw new RuntimeException("cannot add null to layout")
     if (layout == null) throw new RuntimeException("layout cannot be null")
     val l = layout :+ span
-    if (layout.size + 1 == includes.size)
-      l :+ computeSpanOfLayout(firstTokenIncl, includes, l)
+    if (l.size == rhsSize)
+      l :+ computeSpanOfLayout(firstTokenIncl, rhsSize, l)
     else 
       l
   }
 
-  private def computeSpanOfLayout(firstIndexIncl : Int, includes : Vector[Boolean], 
-    layout : Layout) : Span = 
+  private def computeSpanOfLayout(firstIndexIncl : Int, rhsSize : Int, layout : Layout) : Span = 
   {
     var span : Span = Span.nullSpan(firstIndexIncl, firstIndexIncl)
     var i = 0
-    val size = includes.size
-    while (i < size) {
-      val s = layout(i)
-      if (includes(i)) 
-        span.addBehind(s) 
-      else 
-        span.addBehind(Span.nullSpan(s.firstIndexIncl, s.lastIndexExcl))
+    while (i < rhsSize) {
+      span.addBehind(layout(i)) 
       i = i + 1
     }
     span

@@ -19,9 +19,6 @@ package object indent {
     }
   }
 
-  def makeIncludes(rhs : Vector[IndexedSymbol]) : Vector[Boolean] = 
-    Vector.fill(rhs.size)(true)  
-
   final class Parser(grammar : Grammar, printErrors : Boolean) {
     if (!grammar.isWellformed) {
       if (printErrors) {
@@ -73,12 +70,12 @@ package object indent {
 
   def rule(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {
     val (r, params) = string2rhs(rhs)
-    Grammar(ParseRule(nonterminal, r, makeIncludes(r), params, Constraint.unconstrained, action))
+    Grammar(ParseRule(nonterminal, r, params, Constraint.unconstrained, action))
   }
 
   def rule(nonterminal : String, rhs : String, constraint : Constraint, action : ParseContext => Any) : Grammar = {
     val (r, params) = string2rhs(rhs)
-    Grammar(ParseRule(nonterminal, r, makeIncludes(r), params, constraint, action))    
+    Grammar(ParseRule(nonterminal, r, params, constraint, action))    
   }
 
 }

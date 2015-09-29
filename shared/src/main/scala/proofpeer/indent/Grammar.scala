@@ -47,7 +47,7 @@ trait ParseContext extends Dynamic {
 
 }
 
-case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol], includes : Vector[Boolean], 
+case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol],  
   params : Vector[ParseParam], constraint : Constraint, action : ParseContext => Any) extends Rule
 
 trait AmbiguityResolution {
@@ -80,10 +80,6 @@ object GrammarError {
 
   case class UnavailableLayoutSymbol(ambiguousSymbol : IndexedSymbol, symbol : String, rule : Int) extends GrammarError {
     override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in one of the parameters but is not available at that point in the definition of '" + symbol + "'."    
-  }
-
-  case class IncludesMismatch(symbol : String, includesFound : Int, includesExpected : Int, rule : Int) extends GrammarError {
-    override def toString : String = "Found " + includesFound + " instead of " + includesExpected + " include specs in definition of '" + symbol + "'."
   }
 
 }
@@ -126,8 +122,6 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
                   if (f != 1) errors :+= AmbiguousLayoutSymbol(symbol, rule.symbol, ruleindex)
               }
             }
-            if (rule.rhs.size != rule.includes.size) 
-              errors :+= IncludesMismatch(rule.symbol, rule.includes.size, rule.rhs.size, ruleindex) 
 
             var paramIndex = 0
             var parsedSymbols : Set[IndexedSymbol] = Set()
