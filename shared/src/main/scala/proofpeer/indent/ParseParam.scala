@@ -104,7 +104,6 @@ final object ParseParam {
         }
       case Alternative(p, q) =>
         (simp(p), simp(q)) match {
-          case (Nil, q) => q
           case (Const(c), q) => if (c < 0) q else Const(c)
           case (p, q) => Alternative(p, q)
         }
