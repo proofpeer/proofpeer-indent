@@ -360,7 +360,6 @@ final class Earley(ea : EarleyAutomaton) {
         case List() => throw new RuntimeException("cannot construct parse tree")
         case List(foundItem) => mkTree(foundItem)
         case _ =>
-          // to fix: if multiple spans are found here, not all of them might work for the constraint
           val trees = foundItems.map(mkTree _).toVector
           val node = trees.head
           if (ambiguityResolution.isDefined) {
