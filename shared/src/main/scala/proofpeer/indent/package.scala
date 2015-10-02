@@ -65,7 +65,7 @@ package object indent {
   }
 
   def rule(terminal : String, rhs : regex.RegularExpr, priority : Option[Int] = None, scope : String = "") : Grammar = {
-    Grammar(ScanRule(terminal, scope, priority, Lexer.untilWhitespace(rhs, true)))
+    Grammar(ScanRule(terminal, scope, priority, Lexer.untilWhitespace(rhs)))
   }
 
   def rule(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {

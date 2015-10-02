@@ -2,15 +2,14 @@ package proofpeer.indent.earley
 
 import proofpeer.indent._
 import proofpeer.indent.regex.DFA
-import proofpeer.indent.regex.DocumentCharacterStream
 
 object Earley {
 
   var debug = false
 
-  final val DEFAULT_PARAM = ParseParam.NIL
+  final val DEFAULT_PARAM : ParseParam.V = ParseParam.NIL
 
-  final class Item(val coreItemId : Int, val param : Int, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item) {
+  final class Item(val coreItemId : Int, val param : ParseParam.V, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item) {
     override def toString : String = {
       val p = if (param == DEFAULT_PARAM) "" else "{" + param + "}"
       "Earley.Item[coreItemId="+coreItemId+p+", origin="+origin+", layout="+layout+"]"
@@ -74,7 +73,7 @@ final class Bin(val pool : BitmapPool) {
     } else null
   }
 
-  def addItem(coreItemId : Int, param : Int, origin : Int, layout : Span.Layout) {
+  def addItem(coreItemId : Int, param : ParseParam.V, origin : Int, layout : Span.Layout) {
     var item = bitmap(coreItemId)
     if (item == null) {
       newItems = new Item(coreItemId, param, origin, layout, null, newItems)
@@ -117,11 +116,11 @@ final class Earley(ea : EarleyAutomaton) {
     bin
   }
 
-  def predictAndComplete(bins : Array[Bin], k : Int) : Set[(Int, Int)] = {
+  def predictAndComplete(bins : Array[Bin], k : Int) : Set[(Int, ParseParam.V)] = {
     val bin = bins(k)
     if (bin == null) return null
     var item = bin.nextItem()
-    var terminals : Set[(Int, Int)] = Set()
+    var terminals : Set[(Int, ParseParam.V)] = Set()
     while (item != null) {
       val coreItem = ea.coreItemOf(item)
       val param = item.param
@@ -170,13 +169,13 @@ final class Earley(ea : EarleyAutomaton) {
     terminals
   }
 
-  def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, Int)]) {
+  def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, ParseParam.V)]) {
     if (terminals == null || terminals.isEmpty) return
 
     import scala.collection.mutable.{Map => MutableMap}
     
     // check which terminals actually can be scanned from position k on
-    var scans : MutableMap[(Int, Int), Int] = MutableMap()
+    var scans : MutableMap[(Int, ParseParam.V), Int] = MutableMap()
     for (t <- terminals) {
       val lexer = ea.lexerOfTerminal(t._1)
       val len = lexer.lex(document, k, t._2)
@@ -184,7 +183,7 @@ final class Earley(ea : EarleyAutomaton) {
     }
 
     // check which scans are compatible with some layout 
-    var scopes : MutableMap[Int, (Int, Set[(Int, Int)])] = MutableMap()
+    var scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V)])] = MutableMap()
     val (row, column, _) = document.character(k)
     val (_, column0, _) = document.character(document.firstPositionInRow(row))
     var item = bins(k).processedItems
@@ -283,9 +282,9 @@ final class Earley(ea : EarleyAutomaton) {
   private class ParseTreeConstruction(document : Document, bins : Array[Bin]) {
 
     import scala.collection.mutable.{Map => MutableMap}
-    private var cache : MutableMap[(Int, Int, Int, Int), ParseTree] = MutableMap()
+    private var cache : MutableMap[(Int, ParseParam.V, Int, Int), ParseTree] = MutableMap()
 
-    def getParseTree(nonterminal : Int, param : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    def getParseTree(nonterminal : Int, param : ParseParam.V, startPosition : Int, endPosition : Int) : ParseTree = {
       val key = (nonterminal, param, startPosition, endPosition)
       cache.get(key) match {
         case None => 
@@ -301,7 +300,7 @@ final class Earley(ea : EarleyAutomaton) {
       * @param startPosition the start position (inclusive)
       * @param endPosition the end position (exclusive)
       */
-    def constructParseTree(nonterminal : Int, param : Int, startPosition : Int, endPosition : Int) : ParseTree = {
+    def constructParseTree(nonterminal : Int, param : ParseParam.V, startPosition : Int, endPosition : Int) : ParseTree = {
       val grammar = ea.grammar
       val ambiguityResolution = grammar.ambiguityResolution
       val nonterminalSymbol = ea.nonterminalOfId(nonterminal)

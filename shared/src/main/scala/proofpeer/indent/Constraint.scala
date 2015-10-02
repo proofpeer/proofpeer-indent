@@ -161,10 +161,11 @@ object Constraint {
   }
 
   type L = Span.Layout
-  type Evaluator = (Int, L) => Option[Boolean]
-  type Measure = (Int, L) => Option[Int]
+  type V = ParseParam.V
+  type Evaluator = (V, L) => Option[Boolean]
+  type Measure = (V, L) => Option[Int]
 
-  private def AndEval(u : Evaluator, v : Evaluator) : Evaluator = (p : Int, layout : L) => 
+  private def AndEval(u : Evaluator, v : Evaluator) : Evaluator = (p : V, layout : L) => 
     (u(p, layout), v(p, layout)) match {
       case (Some(p), Some(q)) => Some(p && q)
       case (_, Some(false)) => Some(false)
@@ -172,13 +173,13 @@ object Constraint {
       case _ => None
     }
 
-  private def PartialAndEval(u : Evaluator) : Evaluator = (p : Int, layout : L) =>
+  private def PartialAndEval(u : Evaluator) : Evaluator = (p : V, layout : L) =>
     u(p, layout) match {
       case Some(false) => Some(false)
       case _ => None
     }
 
-  private def OrEval(u : Evaluator, v : Evaluator) : Evaluator = (p : Int, layout : L) => 
+  private def OrEval(u : Evaluator, v : Evaluator) : Evaluator = (p : V, layout : L) => 
     (u(p, layout), v(p, layout)) match {
       case (Some(p), Some(q)) => Some(p || q)
       case (_, Some(true)) => Some(true)
@@ -186,19 +187,19 @@ object Constraint {
       case _ => None
     }
 
-  private def PartialOrEval(u : Evaluator) : Evaluator = (p : Int, layout : L) =>
+  private def PartialOrEval(u : Evaluator) : Evaluator = (p : V, layout : L) =>
     u(p, layout) match {
       case Some(true) => Some(true)
       case _ => None
     }
 
-  private def NotEval(u : Evaluator) : Evaluator = (p : Int, layout : L) => 
+  private def NotEval(u : Evaluator) : Evaluator = (p : V, layout : L) => 
     u(p, layout) match {
       case None => None
       case Some(p) => Some(!p)
     }
 
-  private def ImpliesEval(u : Evaluator, v : Evaluator) : Evaluator = (p : Int, layout : L) => 
+  private def ImpliesEval(u : Evaluator, v : Evaluator) : Evaluator = (p : V, layout : L) => 
     (u(p, layout), v(p, layout)) match {
       case (Some(p), Some(q)) => Some(if (p) q else true)
       case (Some(false), _) => Some(true)
@@ -206,34 +207,34 @@ object Constraint {
       case _ => None
     }
 
-  private def PartialConclEval(u : Evaluator) : Evaluator = (p : Int, layout : L) =>
+  private def PartialConclEval(u : Evaluator) : Evaluator = (p : V, layout : L) =>
     u(p, layout) match {
       case Some(true) => Some(true)
       case _ => None
     }
 
-  private def PartialHypEval(u : Evaluator) : Evaluator = (p : Int, layout : L) =>
+  private def PartialHypEval(u : Evaluator) : Evaluator = (p : V, layout : L) =>
     u(p, layout) match {
       case Some(false) => Some(true)
       case _ => None
     }
 
   private def LessEval(left : Measure, right : Measure, delta : Int) : Evaluator = 
-    (p : Int, layout : L) =>
+    (p : V, layout : L) =>
       (left(p, layout), right(p, layout)) match {
         case (Some(left), Some(right)) => Some(left < right + delta)
         case _ => None
       }
 
   private def LeqEval(left : Measure, right : Measure, delta : Int) : Evaluator = 
-    (p : Int, layout : L) =>
+    (p : V, layout : L) =>
       (left(p, layout), right(p, layout)) match {
         case (Some(left), Some(right)) => Some(left <= right + delta)
         case _ => None
       }
 
   private def EqEval(left : Measure, right : Measure, delta : Int) : Evaluator = 
-    (p : Int, layout : L) =>
+    (p : V, layout : L) =>
       (left(p, layout), right(p, layout)) match {
         case (Some(left), Some(right)) => Some(left == right + delta)
         case _ => None
@@ -242,7 +243,7 @@ object Constraint {
 
   def evalConstraint(constraint : Constraint, f : IndexedSymbol => Option[Int]) : Option[Evaluator] = {
     constraint match {
-      case And(List()) => Some((p : Int, layout : L) => Some(true))
+      case And(List()) => Some((p : V, layout : L) => Some(true))
       case And(cs) =>
         val constraints = cs.map(c => evalConstraint(c, f))
         var e : Option[Evaluator] = constraints.head
@@ -255,7 +256,7 @@ object Constraint {
           }
         }
         e
-      case Or(List()) => Some((p : Int, layout : L) => Some(false))        
+      case Or(List()) => Some((p : V, layout : L) => Some(false))        
       case Or(cs) =>
         val constraints = cs.map(c => evalConstraint(c, f))
         var e : Option[Evaluator] = constraints.head
@@ -301,13 +302,13 @@ object Constraint {
       case NullSpan(symbol) => 
         f(symbol) match {
           case None => None
-          case Some(i) => Some((p : Int, layout : L) => Some(layout(i).isNull))
+          case Some(i) => Some((p : V, layout : L) => Some(layout(i).isNull))
         }
     }
   }
 
   private def EvalQualifier(q : LayoutQualifier, i : Int) : Measure = 
-    (p : Int, layout : L) => {
+    (p : V, layout : L) => {
       q.get(layout(i))
     }
 
@@ -321,8 +322,12 @@ object Constraint {
   private def evalLayoutValue(value : LayoutValue, f : IndexedSymbol => Option[Int]) : Option[Measure] = {
     value match {
       case e : LayoutEntity => evalLayoutEntity(e, f)
-      case Parameter => Some((p : Int, layout : L) => Some(p))
-      case Zero => Some((p : Int, layout : L) => Some(0))
+      case Parameter => Some((p : V, layout : L) => 
+        p match {
+          case ParseParam.INT(p) => Some(p)
+          case _ => None
+        })
+      case Zero => Some((p : V, layout : L) => Some(0))
     }
   }
 

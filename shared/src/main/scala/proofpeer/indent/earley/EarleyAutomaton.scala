@@ -8,8 +8,8 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
-  var evalConstraint : (Int, Span.Layout) => Boolean = (param : Int, layout : Span.Layout) => true 
-  var evalParam : (Int, Span.Layout, Int) => Int = 
+  var evalConstraint : (ParseParam.V, Span.Layout) => Boolean = (param : ParseParam.V, layout : Span.Layout) => true 
+  var evalParam : (ParseParam.V, Span.Layout, Int) => ParseParam.V = 
     { case (param, layout, i) => Earley.DEFAULT_PARAM }
 } 
 
@@ -174,7 +174,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
     nonprio ++ terminalsWithHighestPrio
   }
 
-  def prioritizeTerminalsWithParams(terminalsWithParams : Set[(Int, Int)]) : Set[(Int, Int)] = {
+  def prioritizeTerminalsWithParams(terminalsWithParams : Set[(Int, ParseParam.V)]) : Set[(Int, ParseParam.V)] = {
     val terminals = terminalsWithParams.map(x => x._1)
     val prioritizedTerminals = prioritizeTerminals(terminals)
     terminalsWithParams.filter(t => prioritizedTerminals.contains(t._1))

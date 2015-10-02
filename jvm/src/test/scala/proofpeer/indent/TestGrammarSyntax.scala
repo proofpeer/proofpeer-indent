@@ -7,7 +7,7 @@ import proofpeer.indent.regex._
 
 object TestGrammarSyntax extends Properties("GrammarSyntax") {
 
-  import GrammarSyntax.{parseId, parseSymbol, parseSymbols}
+  import GrammarSyntax.{parseId, parseParam, parseSymbol, parseSymbols}
   import ParseParam._
 
   property("id1") = parseId("x") == Some(IndexedSymbol("x", None))
@@ -24,20 +24,30 @@ object TestGrammarSyntax extends Properties("GrammarSyntax") {
 
   private val x = IndexedSymbol("x", None)
 
+  private val Nil = Const(NIL)
+
   property("symbol1") = parseSymbol("x") == Some((x, Nil))
   property("symbol2") = parseSymbol("x ()") == Some((x, Nil))
-  property("symbol3") = parseSymbol("x 1") == Some((x, Const(1)))
+  property("symbol3") = parseSymbol("x 1") == Some((x, Const(INT(1))))
   property("symbol4") = parseSymbol("x -10") == None
-  property("symbol5") = parseSymbol("x (-10)") == Some((x, Neg(Const(10))))
+  property("symbol5") = parseSymbol("x (-10)") == Some((x, Neg(Const(INT(10)))))
   property("symbol6") = parseSymbol("x (x.leftMostFirst+3)") == 
-    Some((x, Add(LayoutEntity(Constraint.LeftMostFirst(x)), Const(3))))
+    Some((x, Add(LayoutEntity(Constraint.LeftMostFirst(x)), Const(INT(3)))))
   property("symbol7") = parseSymbol("x (1 | 2 - 5 | 3)") == 
-    Some((x, Alternative(Alternative(Const(1), Sub(Const(2), Const(5))), Const(3))))
+    Some((x, Alternative(Alternative(Const(INT(1)), Sub(Const(INT(2)), Const(INT(5)))), Const(INT(3)))))
+
+  property("param1") = parseParam("~.1") == Some(Select(Current, 1))
+  property("param2") = parseParam("~.min") == Some(Min(Current))
+  property("param3") = parseParam("~.max") == Some(Max(Current))
+  property("param4") = parseParam("(~, ~)") == Some(Cons(Current, Cons(Current, Nil)))
+  property("param5") = parseParam("()") == Some(Nil)
+  property("param6") = parseParam("(~)") == Some(Current)
+
 
   property("symbols1") = parseSymbols("x") == Some(Vector((x, Nil)))
   property("symbols2") = parseSymbols("x x") == Some(Vector((x, Nil), (x, Nil)))
   property("symbols3") = parseSymbols("x() x~") == Some(Vector((x, Nil), (x, Current)))
-  property("symbols4") = parseSymbols("x 1") == Some(Vector((x, Const(1))))
+  property("symbols4") = parseSymbols("x 1") == Some(Vector((x, Const(INT(1)))))
   property("symbols5") = parseSymbols("x~") == Some(Vector((x, Current)))
   property("symbols6") = parseSymbols("x~x") == Some(Vector((x, Current), (x, Nil)))
   property("symbols7") = parseSymbols("x(-~)") == Some(Vector((x, Neg(Current))))

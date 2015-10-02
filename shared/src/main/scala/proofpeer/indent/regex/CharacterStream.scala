@@ -26,36 +26,3 @@ object CharacterStream {
 
 }
 
-import proofpeer.indent.Document
-
-final class DocumentCharacterStream(ok : (Int, Int, Int, Int) => Boolean) extends CharacterStream {
-
-  private var document : Document = null
-  private var size = 0
-  private var position = 0
-  private var lastRow = -1
-  private var lastColumn = -1
-  private var lowerColumnBound = -1
-
-  def nextCharacter : Int = {
-    if (position >= size) return -1
-    val (row, column, code) = document.character(position)
-    if (column < lowerColumnBound) return -1
-    if (lastRow < 0 || ok(lastRow, lastColumn, row, column)) {
-      lastRow = row
-      lastColumn = column
-      position += 1
-      code      
-    } else -1
-  }
-
-  def init (d : Document, p : Int, lcb : Int = -1) {
-    document = d
-    size = document.size
-    position = p
-    lastRow = -1
-    lastColumn = -1
-    lowerColumnBound = lcb
-  }
-
-}
