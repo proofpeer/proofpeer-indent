@@ -182,4 +182,21 @@ final class EarleyAutomaton(val grammar : Grammar) {
 
   def coreItemOf(item : Earley.Item) : CoreItem = coreItems(item.coreItemId)
 
+  def stringOfId(id : Int) : String = {
+    if (id < 0) terminalOfId(id) else nonterminalOfId(id)
+  }
+
+  def coreItem2String(coreItem : CoreItem) : String = {
+    var s = ""
+    s = s + stringOfId(coreItem.nonterminal) + " => "
+    var i = 0
+    while (i < coreItem.rhs.length) {
+      if (i == coreItem.dot) s = s + ". "
+      s = s + stringOfId(coreItem.rhs(i)) + " "
+      i = i + 1
+    }
+    if (i == coreItem.dot) s = s + ". "
+    s
+  }
+
 }

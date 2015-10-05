@@ -19,8 +19,7 @@ object Constraint {
   def not(constraint : Constraint) : Constraint  = 
     Not(constraint)
     
-  def implies(asm : Constraint, concl : Constraint) 
-        : Constraint  =
+  def implies(asm : Constraint, concl : Constraint) : Constraint  =
     Implies(asm, concl)      
     
   def ifThenElse(asm : Constraint, thenConcl : Constraint, 
@@ -32,6 +31,7 @@ object Constraint {
   sealed trait LayoutValue 
   case class LayoutEntity(q : LayoutQualifier, s : IndexedSymbol) extends LayoutValue
   case object Parameter extends LayoutValue
+  case class ParameterSelect(index : Int) extends LayoutValue
   case object Zero extends LayoutValue
 
   /** left < right + delta */
@@ -323,10 +323,9 @@ object Constraint {
     value match {
       case e : LayoutEntity => evalLayoutEntity(e, f)
       case Parameter => Some((p : V, layout : L) => 
-        p match {
-          case ParseParam.INT(p) => Some(p)
-          case _ => None
-        })
+        Some(ParseParam.toInt(p)))
+      case ParameterSelect(index) => Some((p : V, layout : L) =>
+        Some(ParseParam.toInt(ParseParam.calcSelect(p, index))))
       case Zero => Some((p : V, layout : L) => Some(0))
     }
   }

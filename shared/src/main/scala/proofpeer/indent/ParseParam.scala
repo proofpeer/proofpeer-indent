@@ -5,9 +5,28 @@ sealed trait ParseParam
 final object ParseParam {
 
   sealed trait V
-  final case object NIL extends V
-  final case class INT(x : Int) extends V
-  final case class LIST(head : V, tail : V) extends V
+  final case object NIL extends V {
+    override def toString = "nil"
+  }
+  final case class INT(x : Int) extends V {
+    override def toString = x.toString
+  }
+  final case class LIST(head : V, tail : V) extends V {
+    override def toString : String = {
+      var s = "[" + head
+      var l = tail
+      while(true) {
+        l match {
+          case NIL => return s + "]"
+          case LIST(head, tail) => 
+            s = s + "," + head
+            l = tail
+          case INT(x) => return s + "/" + x + "]"
+        }
+      }
+      throw new RuntimeException("internal error")
+    }
+  }
 
   final case class Const(v : V) extends ParseParam
   final case object Current extends ParseParam
@@ -106,12 +125,19 @@ final object ParseParam {
     }
   }
 
-  private def calcSelect(p : V, index : Int) : V = {
+  def calcSelect(p : V, index : Int) : V = {
     p match {
       case LIST(p, q) if index == 1 => p
       case LIST(p, q) if index > 1 => calcSelect(q, index-1)
       case _ => error("calcSelect " + p + " " + index)
     }
+  }
+
+  def toInt(p : V) : Int = {
+    p match {
+      case ParseParam.INT(p) => p
+      case _ => throw new RuntimeException("INT parameter expected, found: " + p)
+    } 
   }
     
   private def isConst(p : ParseParam) : Boolean = {
@@ -209,7 +235,7 @@ final object ParseParam {
       case Select(p, index) => 
         simp(p) match {
           case Const(u) => Const(calcSelect(u, index))
-          case u => u
+          case u => Select(u, index)
         }
       case Alternative(p, q) =>
         (simp(p), simp(q)) match {
@@ -221,6 +247,20 @@ final object ParseParam {
           case (Const(p), Const(q)) => Const(LIST(p, q))
           case (p, q) => Cons(p, q)
         }
+    }
+  }
+
+  def v2Ints(defaults : List[Int], v : V) : List[Int] = {
+    if (defaults.isEmpty) List()
+    else {
+      v match {
+        case LIST(INT(x), tail) =>
+          x :: v2Ints(defaults.tail, tail)
+        case LIST(NIL, tail) =>
+          defaults.head :: v2Ints(defaults.tail, tail)
+        case INT(x) => x :: defaults.tail
+        case _ => defaults
+      }
     }
   }
 

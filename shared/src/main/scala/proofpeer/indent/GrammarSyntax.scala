@@ -80,9 +80,11 @@ object GrammarSyntax {
     r("RIGHTMOSTLAST") ++
     r("MAX") ++
     r("MIN") ++
+    r("NIL") ++
     r("Identifier", "ID", c => string2IndexedSymbol(c.text)) ++
     r("AtomicParam", "CURRENT", c => ParseParam.Current) ++
     r("AtomicParam", "NUM", c => ParseParam.Const(ParseParam.INT(c.text.toInt))) ++
+    r("AtomicParam", "NIL", c => ParseParam.Const(ParseParam.NIL)) ++
     r("AtomicParam", "OPEN ParamList CLOSE", c => mkLIST(c.ParamList[Vector[ParseParam]])) ++
     r("LayoutParam", "AtomicParam", _.AtomicParam[ParseParam]) ++
     r("LayoutParam", "Identifier DOT Qualifier", 

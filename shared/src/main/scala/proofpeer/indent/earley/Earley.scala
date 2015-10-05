@@ -157,7 +157,7 @@ final class Earley(ea : EarleyAutomaton) {
               val nextCoreItemId = originCoreItem.nextCoreItem
               val nextCoreItem = ea.coreItems(nextCoreItemId)
               if (nextCoreItem.evalConstraint(param, layout)) 
-                bin.addItem(nextCoreItemId, param, originItem.origin, layout)
+                bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout)
             }
           }
           originItem = originItem.nextItem
@@ -173,7 +173,7 @@ final class Earley(ea : EarleyAutomaton) {
     if (terminals == null || terminals.isEmpty) return
 
     import scala.collection.mutable.{Map => MutableMap}
-    
+
     // check which terminals actually can be scanned from position k on
     var scans : MutableMap[(Int, ParseParam.V), Int] = MutableMap()
     for (t <- terminals) {
