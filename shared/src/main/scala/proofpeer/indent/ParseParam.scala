@@ -254,10 +254,8 @@ final object ParseParam {
     if (defaults.isEmpty) List()
     else {
       v match {
-        case LIST(INT(x), tail) =>
-          x :: v2Ints(defaults.tail, tail)
-        case LIST(NIL, tail) =>
-          defaults.head :: v2Ints(defaults.tail, tail)
+        case LIST(INT(x), tail) => x :: v2Ints(defaults.tail, tail)
+        case LIST(NIL, tail) => defaults.head :: v2Ints(defaults.tail, tail)
         case INT(x) => x :: defaults.tail
         case _ => defaults
       }
