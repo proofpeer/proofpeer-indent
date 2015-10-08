@@ -297,17 +297,19 @@ final class Earley(ea : EarleyAutomaton) {
   private class ParseTreeConstruction(document : Document, bins : Array[Bin]) {
 
     import scala.collection.mutable.{Map => MutableMap}
-    private var cache : MutableMap[(Int, ParseParam.V, Int, Int), ParseTree] = MutableMap()
+    private var cache : MutableMap[(Int, ParseParam.V, ParseParam.V, Int, Int), ParseTree] = MutableMap()
 
-    def getParseTree(nonterminal : Int, param : ParseParam.V, startPosition : Int, endPosition : Int) : ParseTree = {
-      val key = (nonterminal, param, startPosition, endPosition)
+    def getParseTree(nonterminal : Int, param : ParseParam.V, result : ParseParam.V,
+      startPosition : Int, endPosition : Int) : ParseTree = 
+    {
+      val key = (nonterminal, param, result, startPosition, endPosition)
       cache.get(key) match {
         case None => 
-          val result = constructParseTree(nonterminal, param, startPosition, endPosition)
-          cache += (key -> result)
-          result
-        case Some(result) =>
-          result
+          val r = constructParseTree(nonterminal, param, result, startPosition, endPosition)
+          cache += (key -> r)
+          r
+        case Some(r) =>
+          r
       }
     }
 
@@ -315,7 +317,9 @@ final class Earley(ea : EarleyAutomaton) {
       * @param startPosition the start position (inclusive)
       * @param endPosition the end position (exclusive)
       */
-    def constructParseTree(nonterminal : Int, param : ParseParam.V, startPosition : Int, endPosition : Int) : ParseTree = {
+    def constructParseTree(nonterminal : Int, param : ParseParam.V, result : ParseParam.V, 
+      startPosition : Int, endPosition : Int) : ParseTree = 
+    {
       val grammar = ea.grammar
       val ambiguityResolution = grammar.ambiguityResolution
       val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
@@ -327,7 +331,11 @@ final class Earley(ea : EarleyAutomaton) {
         if (coreItem.nonterminal == nonterminal && coreItem.nextSymbol == 0 && 
           item.param == param && item.origin == startPosition) 
         {
-          foundItems = item :: foundItems
+          if (result != null) {
+            val r = coreItem.evalResult(item.param, item.layout, item.results)
+            if (r == result) foundItems = item :: foundItems
+          } else 
+            foundItems = item :: foundItems
         }
         item = item.nextItem
       }
@@ -342,7 +350,8 @@ final class Earley(ea : EarleyAutomaton) {
             subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
           else {
             val p = coreItem.evalParam(param, foundItem.layout, foundItem.results, i)
-            subtrees(i) = getParseTree(symbol, p, span.firstIndexIncl, span.lastIndexExcl)
+            val r = foundItem.results(i)
+            subtrees(i) = getParseTree(symbol, p, r, span.firstIndexIncl, span.lastIndexExcl)
           }
           hasAmbiguities = hasAmbiguities || subtrees(i).hasAmbiguities
         }
@@ -391,7 +400,7 @@ final class Earley(ea : EarleyAutomaton) {
     recognize(document, Set(nonterminal)) match {
       case Left((recognized, bins)) =>
         val c = new ParseTreeConstruction(document, bins)
-        Left(c.getParseTree(nonterminal, DEFAULT_PARAM, 0, document.size))
+        Left(c.getParseTree(nonterminal, DEFAULT_PARAM, null, 0, document.size))
       case Right(k) => 
         Right(k) 
     }
