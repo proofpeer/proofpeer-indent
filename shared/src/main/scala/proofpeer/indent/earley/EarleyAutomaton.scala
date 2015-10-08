@@ -179,7 +179,9 @@ final class EarleyAutomaton(val grammar : Grammar) {
     nonprio ++ terminalsWithHighestPrio
   }
 
-  def prioritizeTerminalsWithParams(terminalsWithParams : Set[(Int, ParseParam.V)]) : Set[(Int, ParseParam.V)] = {
+  def prioritizeTerminalsWithParams(terminalsWithParams : Set[(Int, ParseParam.V, ParseParam.V)]) : 
+    Set[(Int, ParseParam.V, ParseParam.V)] = 
+  {
     val terminals = terminalsWithParams.map(x => x._1)
     val prioritizedTerminals = prioritizeTerminals(terminals)
     terminalsWithParams.filter(t => prioritizedTerminals.contains(t._1))

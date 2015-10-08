@@ -188,15 +188,15 @@ final class Earley(ea : EarleyAutomaton) {
     import scala.collection.mutable.{Map => MutableMap}
 
     // check which terminals actually can be scanned from position k on
-    var scans : MutableMap[(Int, ParseParam.V), Int] = MutableMap()
+    var scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
     for (t <- terminals) {
       val lexer = ea.lexerOfTerminal(t._1)
-      val len = lexer.lex(document, k, t._2)
-      if (len > 0) scans += (t -> len)
+      val (len, r) = lexer.lex(document, k, t._2)
+      if (len > 0) scans += (t -> (len, r))
     }
 
     // check which scans are compatible with some layout 
-    var scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V)])] = MutableMap()
+    var scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
     val (row, column, _) = document.character(k)
     val (_, column0, _) = document.character(document.firstPositionInRow(row))
     var item = bins(k).processedItems
@@ -208,20 +208,21 @@ final class Earley(ea : EarleyAutomaton) {
         val t = (terminal -> terminalParam)
         scans.get(t) match {
           case None =>
-          case Some(len) =>
+          case Some((len, result)) =>
             val span = Span(column0, row, column, k, len) 
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
-            val results = ParseParam.addToResults(item.results, Earley.DEFAULT_RESULT)
+            val results = ParseParam.addToResults(item.results, result)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
             if (nextCoreItem.evalConstraint(item.param, layout, results)) {
               val scope = ea.scopeOfTerminal(terminal)
+              val tr = (t._1, t._2, result)
               scopes.get(scope) match {
-                case None => scopes += (scope -> (len, Set(t)))
+                case None => scopes += (scope -> (len, Set(tr)))
                 case Some((l, ts)) => 
                   if (len == l)
-                    scopes += (scope -> (l, ts + t))
+                    scopes += (scope -> (l, ts + tr))
                   else if (len > l)
-                    scopes += (scope -> (len, Set(t)))
+                    scopes += (scope -> (len, Set(tr)))
               }
             }            
         }
@@ -243,13 +244,15 @@ final class Earley(ea : EarleyAutomaton) {
         val coreItem = ea.coreItemOf(item)
         if (coreItem.nextSymbol < 0) {
           val param = coreItem.evalParam(item.param, item.layout, item.results, coreItem.dot)
-          val t = (coreItem.nextSymbol -> param)
-          if (recognizedTerminals.contains(t)) {
+          val candidateTerminals = recognizedTerminals.filter(t => t._1 == coreItem.nextSymbol && t._2 == param)
+          if (!candidateTerminals.isEmpty) {
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
-            val results = ParseParam.addToResults(item.results, Earley.DEFAULT_RESULT)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
-            if (nextCoreItem.evalConstraint(item.param, layout, results)) {
-              destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results)
+            for (t <- candidateTerminals) {
+              val results = ParseParam.addToResults(item.results, t._3)
+              if (nextCoreItem.evalConstraint(item.param, layout, results)) {
+                destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results)
+              }
             }
           }
         }

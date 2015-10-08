@@ -5,7 +5,7 @@ import proofpeer.indent.regex._
 trait Lexer {
   /** Returns the maximum number of characters that the lexer accepts. A return value
       of 0 or less means that lexing failed. */
-  def lex(d : Document, startPosition : Int, param : ParseParam.V) : Int
+  def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V)
 }
 
 object Lexer {
@@ -31,11 +31,11 @@ object Lexer {
 
   private class LexerImpl(dfa : DFA, layout : Layout) extends Lexer
   {
-    def lex(d : Document, startPosition : Int, param : ParseParam.V) : Int = {
+    def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
       val (start, continue) = layout(param)
       val stream = new DocumentCharacterStream(d, startPosition, start, continue)
       val (len, _) = DFA.run(dfa, stream, null)
-      len
+      (len, earley.Earley.DEFAULT_RESULT)
     }
   } 
 
