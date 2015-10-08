@@ -9,13 +9,13 @@ package object indent {
     GrammarSyntax.string2IndexedSymbol(name)
   }
 
-  def string2rhs(s : String) : (Vector[IndexedSymbol], Vector[ParseParam]) = {
-    GrammarSyntax.parseSymbols(s) match {
+  def string2rhs(s : String) : (Vector[IndexedSymbol], Vector[ParseParam], ParseParam) = {
+    GrammarSyntax.parseSymbolsAndResult(s) match {
       case None => throw new RuntimeException("Cannot parse right hand side: '" + s + "'")
-      case Some(symbols) =>
+      case Some((symbols, result)) =>
         val indexedSymbols = symbols.map(s => s._1)
         val params = symbols.map(s => s._2)
-        (indexedSymbols, params)
+        (indexedSymbols, params, result)
     }
   }
 
@@ -69,13 +69,13 @@ package object indent {
   }
 
   def rule(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = {
-    val (r, params) = string2rhs(rhs)
-    Grammar(ParseRule(nonterminal, r, params, Constraint.unconstrained, action))
+    val (r, params, result) = string2rhs(rhs)
+    Grammar(ParseRule(nonterminal, r, params, Constraint.unconstrained, result, action))
   }
 
   def rule(nonterminal : String, rhs : String, constraint : Constraint, action : ParseContext => Any) : Grammar = {
-    val (r, params) = string2rhs(rhs)
-    Grammar(ParseRule(nonterminal, r, params, constraint, action))    
+    val (r, params, result) = string2rhs(rhs)
+    Grammar(ParseRule(nonterminal, r, params, constraint, result, action))    
   }
 
 }

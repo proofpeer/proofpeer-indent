@@ -8,8 +8,12 @@ object Earley {
   var debug = false
 
   final val DEFAULT_PARAM : ParseParam.V = ParseParam.NIL
+  final val DEFAULT_RESULT : ParseParam.V = ParseParam.NIL
 
-  final class Item(val coreItemId : Int, val param : ParseParam.V, val origin : Int, val layout : Span.Layout, val nextSibling : Item, var nextItem : Item) {
+  final class Item(val coreItemId : Int, val param : ParseParam.V, val origin : Int, 
+    val layout : Span.Layout, val results : ParseParam.Results, 
+    val nextSibling : Item, var nextItem : Item) 
+  {
     override def toString : String = {
       val p = if (param == DEFAULT_PARAM) "" else "{" + param + "}"
       "Earley.Item[coreItemId="+coreItemId+p+", origin="+origin+", layout="+layout+"]"
@@ -73,20 +77,24 @@ final class Bin(val pool : BitmapPool) {
     } else null
   }
 
-  def addItem(coreItemId : Int, param : ParseParam.V, origin : Int, layout : Span.Layout) {
+  def addItem(coreItemId : Int, param : ParseParam.V, origin : Int, 
+    layout : Span.Layout, results : ParseParam.Results) 
+  {
     var item = bitmap(coreItemId)
     if (item == null) {
-      newItems = new Item(coreItemId, param, origin, layout, null, newItems)
+      newItems = new Item(coreItemId, param, origin, layout, results, null, newItems)
       bitmap(coreItemId) = newItems
     } else if (item.param != param || item.origin != origin || 
-      !Span.layoutsAreEqual(item.layout, layout)) 
+      !Span.layoutsAreEqual(item.layout, layout) || 
+      !ParseParam.resultsAreEqual(item.results, results))
     {
       var sibling = item.nextSibling
       while (sibling != null && (param != sibling.param || origin != sibling.origin 
-        || !Span.layoutsAreEqual(layout, sibling.layout)))
+        || !Span.layoutsAreEqual(layout, sibling.layout)
+        || !ParseParam.resultsAreEqual(results, sibling.results)))
         sibling = sibling.nextSibling
       if (sibling == null) {
-        newItems = new Item(coreItemId, param, origin, layout, item, newItems)
+        newItems = new Item(coreItemId, param, origin, layout, results, item, newItems)
         bitmap(coreItemId) = newItems
       }
     }
@@ -111,7 +119,8 @@ final class Earley(ea : EarleyAutomaton) {
     for (coreItemId <- 0 until ea.coreItems.size) {
       val coreItem = ea.coreItems(coreItemId)
       if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) 
-        bin.addItem(coreItemId, DEFAULT_PARAM, 0, Span.emptyLayout(0, coreItem.rhs.size))
+        bin.addItem(coreItemId, DEFAULT_PARAM, 0, Span.emptyLayout(0, coreItem.rhs.size), 
+          ParseParam.emptyResults)
     }
     bin
   }
@@ -126,38 +135,42 @@ final class Earley(ea : EarleyAutomaton) {
       val param = item.param
       val nextSymbol = coreItem.nextSymbol
       if (nextSymbol < 0) /* terminal */ {
-        val nextSymbolParam = coreItem.evalParam(param, item.layout, coreItem.dot)
+        val nextSymbolParam = coreItem.evalParam(param, item.layout, item.results, coreItem.dot)
         terminals += (nextSymbol -> nextSymbolParam)
       } else if (nextSymbol > 0) /* nonterminal */ {
-        val nextSymbolParam = coreItem.evalParam(param, item.layout, coreItem.dot)
+        val nextSymbolParam = coreItem.evalParam(param, item.layout, item.results, coreItem.dot)
         for (predictedItem <- coreItem.predictedCoreItems) {
           val predictedCoreItem = ea.coreItems(predictedItem)
           val layout = Span.emptyLayout(k, predictedCoreItem.rhs.size)
-          bin.addItem(predictedItem, nextSymbolParam, k, layout)
+          val results = ParseParam.emptyResults
+          bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
         }
         if (coreItem.nextSymbolIsNullable) {
           val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, 
             Span.nullSpan(k, k))
+          val results = ParseParam.addToResults(item.results, ea.nullresult(nextSymbol))
           val nextCoreItemId = coreItem.nextCoreItem
           val nextCoreItem = ea.coreItems(nextCoreItemId)
-          if (nextCoreItem.evalConstraint(param, layout))
-            bin.addItem(nextCoreItemId, param, item.origin, layout)
+          if (nextCoreItem.evalConstraint(param, layout, results))
+            bin.addItem(nextCoreItemId, param, item.origin, layout, results)
         }
       } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
         val span = Span.getSpanOfLayout(item.layout)
+        val result = coreItem.evalResult(param, item.layout, item.results)
         var originItem = bins(item.origin).processedItems
         while (originItem != null) {
           val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
-            val p = originCoreItem.evalParam(originItem.param, originItem.layout, originCoreItem.dot)
+            val p = originCoreItem.evalParam(originItem.param, originItem.layout, originItem.results, originCoreItem.dot)
             if (p == param) {
               val layout = Span.addToLayout(originItem.origin, originCoreItem.rhs.size,
                 originItem.layout, span)
+              val results = ParseParam.addToResults(originItem.results, result)
               val nextCoreItemId = originCoreItem.nextCoreItem
               val nextCoreItem = ea.coreItems(nextCoreItemId)
-              if (nextCoreItem.evalConstraint(param, layout)) 
-                bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout)
+              if (nextCoreItem.evalConstraint(param, layout, results)) 
+                bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout, results)
             }
           }
           originItem = originItem.nextItem
@@ -191,15 +204,16 @@ final class Earley(ea : EarleyAutomaton) {
       val coreItem = ea.coreItemOf(item)
       if (coreItem.nextSymbol < 0) {
         val terminal = coreItem.nextSymbol
-        val terminalParam = coreItem.evalParam(item.param, item.layout, coreItem.dot)
+        val terminalParam = coreItem.evalParam(item.param, item.layout, item.results, coreItem.dot)
         val t = (terminal -> terminalParam)
         scans.get(t) match {
           case None =>
           case Some(len) =>
             val span = Span(column0, row, column, k, len) 
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
+            val results = ParseParam.addToResults(item.results, Earley.DEFAULT_RESULT)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
-            if (nextCoreItem.evalConstraint(item.param, layout)) {
+            if (nextCoreItem.evalConstraint(item.param, layout, results)) {
               val scope = ea.scopeOfTerminal(terminal)
               scopes.get(scope) match {
                 case None => scopes += (scope -> (len, Set(t)))
@@ -228,13 +242,14 @@ final class Earley(ea : EarleyAutomaton) {
       while (item != null) {
         val coreItem = ea.coreItemOf(item)
         if (coreItem.nextSymbol < 0) {
-          val param = coreItem.evalParam(item.param, item.layout, coreItem.dot)
+          val param = coreItem.evalParam(item.param, item.layout, item.results, coreItem.dot)
           val t = (coreItem.nextSymbol -> param)
           if (recognizedTerminals.contains(t)) {
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
+            val results = ParseParam.addToResults(item.results, Earley.DEFAULT_RESULT)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
-            if (nextCoreItem.evalConstraint(item.param, layout)) {
-              destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout)
+            if (nextCoreItem.evalConstraint(item.param, layout, results)) {
+              destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results)
             }
           }
         }
@@ -326,7 +341,7 @@ final class Earley(ea : EarleyAutomaton) {
           if (symbol < 0)
             subtrees(i) = TerminalNode(ea.terminalOfId(symbol), span)
           else {
-            val p = coreItem.evalParam(param, foundItem.layout, i)
+            val p = coreItem.evalParam(param, foundItem.layout, foundItem.results, i)
             subtrees(i) = getParseTree(symbol, p, span.firstIndexIncl, span.lastIndexExcl)
           }
           hasAmbiguities = hasAmbiguities || subtrees(i).hasAmbiguities

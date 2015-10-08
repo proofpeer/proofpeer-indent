@@ -28,9 +28,20 @@ final object ParseParam {
     }
   }
 
+  type Results = Vector[V]
+
+  def resultsAreEqual(u : Results, v : Results) : Boolean = {
+    u == v
+  }
+
+  def emptyResults : Results = Vector[V]()
+
+  def addToResults(results : Results, result : V) : Results = results :+ result
+
   final case class Const(v : V) extends ParseParam
   final case object Current extends ParseParam
   final case class LayoutEntity(e : Constraint.LayoutEntity) extends ParseParam
+  final case class VResult(s : IndexedSymbol) extends ParseParam
   final case class Cons(head : ParseParam, tail : ParseParam) extends ParseParam
   final case class Add(p : ParseParam, q : ParseParam) extends ParseParam
   final case class Sub(p : ParseParam, q : ParseParam) extends ParseParam
@@ -49,6 +60,7 @@ final object ParseParam {
       case _ : Const => Set()
       case Current => Set()
       case LayoutEntity(e) => Set(e.s)
+      case VResult(s) => Set(s)
       case Cons(p, q) => collectSymbols(p) ++ collectSymbols(q)
       case Add(p, q) => collectSymbols(p) ++ collectSymbols(q)
       case Sub(p, q) => collectSymbols(p) ++ collectSymbols(q)
@@ -66,9 +78,11 @@ final object ParseParam {
     symbols
   }
 
-  def evalParams(params : Vector[ParseParam], f : IndexedSymbol => Int) : (V, Span.Layout, Int) => V = {
-    val evals = params.map(p => evalParam(simp(p), f))
-    (param : V, layout : Span.Layout, i : Int) => evals(i)(param, layout)
+  def evaluateParams(params : Vector[ParseParam], f : IndexedSymbol => Int) : 
+    (V, Span.Layout, Results, Int) => V = 
+  {
+    val evals = params.map(p => evaluateParam(p, f))
+    (param : V, layout : Span.Layout, results : Results, i : Int) => evals(i)(param, layout, results)
   }
 
   private def error[T](s : String) : T =
@@ -140,6 +154,15 @@ final object ParseParam {
     } 
   }
     
+  def toOptionInt(p : V) : Option[Int] = {
+    p match {
+      case ParseParam.NIL => None
+      case ParseParam.INT(p) => Some(p)
+      case _ => throw new RuntimeException("INT or NIL parameter expected, found: " + p)
+    } 
+  }
+
+
   private def isConst(p : ParseParam) : Boolean = {
     p match {
       case _ : Const => true
@@ -154,50 +177,64 @@ final object ParseParam {
     }
   }
 
-  private def evalParam(param : ParseParam, f : IndexedSymbol => Int) : (V, Span.Layout) => V = {
+  def evaluateParam(param : ParseParam, f : IndexedSymbol => Int) :
+    (V, Span.Layout, Results) => V = 
+  {
+    evalParam(simp(param), f)
+  }  
+
+  private def evalParam(param : ParseParam, f : IndexedSymbol => Int) : 
+    (V, Span.Layout, Results) => V = 
+  {
     param match {
-      case Const(NIL) => (p : V, layout : Span.Layout) => NIL
-      case Const(c) => (p : V, layout : Span.Layout) => c
-      case Current => (p : V, layout : Span.Layout) => p
+      case Const(NIL) => (p : V, layout : Span.Layout, results : Results) => NIL
+      case Const(c) => (p : V, layout : Span.Layout, results : Results) => c
+      case Current => (p : V, layout : Span.Layout, results : Results) => p
       case LayoutEntity(e) => 
         val i = f(e.s)
         val q = e.q
-        (p : V, layout : Span.Layout) => {
+        (p : V, layout : Span.Layout, results : Results) => {
           q.get(layout(i)) match {
             case None => NIL
             case Some(x) => if (x < 0) NIL else INT(x)
           } 
         }
+      case VResult(s) =>
+        val i = f(s)
+        (p : V, layout : Span.Layout, results : Results) => results(i)
       case Cons(u, v) => 
         val U = evalParam(u, f)
         val V = evalParam(v, f)
-        (p : V, layout : Span.Layout) => LIST(U(p, layout), V(p, layout))
+        (p : V, layout : Span.Layout, results : Results) => 
+          LIST(U(p, layout, results), V(p, layout, results))
       case Add(u, v) => 
         val U = evalParam(u, f)
         val V = evalParam(v, f)
-        (p : V, layout : Span.Layout) => calcAdd(U(p, layout), V(p, layout))
+        (p : V, layout : Span.Layout, results : Results) => 
+          calcAdd(U(p, layout, results), V(p, layout, results))
       case Sub(u, v) => 
         val U = evalParam(u, f)
         val V = evalParam(v, f)
-        (p : V, layout : Span.Layout) => calcSub(U(p, layout), V(p, layout))
+        (p : V, layout : Span.Layout, results : Results) => 
+          calcSub(U(p, layout, results), V(p, layout, results))
       case Neg(u) =>
         val U = evalParam(u, f)
-        (p : V, layout : Span.Layout) => calcNeg(U(p, layout))   
+        (p : V, layout : Span.Layout, results : Results) => calcNeg(U(p, layout, results))   
       case Max(u) =>
         val U = evalParam(u, f)
-        (p : V, layout : Span.Layout) => calcMax(U(p, layout))   
+        (p : V, layout : Span.Layout, results : Results) => calcMax(U(p, layout, results))   
       case Min(u) =>
         val U = evalParam(u, f)
-        (p : V, layout : Span.Layout) => calcMin(U(p, layout))   
+        (p : V, layout : Span.Layout, results : Results) => calcMin(U(p, layout, results))   
       case Select(u, i) =>
         val U = evalParam(u, f)
-        (p : V, layout : Span.Layout) => calcSelect(U(p, layout), i)  
+        (p : V, layout : Span.Layout, results : Results) => calcSelect(U(p, layout, results), i)  
       case Alternative(preferred, alternative) =>
         val ep = evalParam(preferred, f)
         val ea = evalParam(alternative, f)
-        (p : V, layout : Span.Layout) => {
-          val u = ep(p, layout)
-          if (u == NIL) ea(p, layout) else u
+        (p : V, layout : Span.Layout, results : Results) => {
+          val u = ep(p, layout, results)
+          if (u == NIL) ea(p, layout, results) else u
         }
     }
   }
@@ -207,6 +244,7 @@ final object ParseParam {
       case Current => p
       case _ : Const => p
       case _ : LayoutEntity => p
+      case _ : VResult => p
       case Neg(p) => 
         simp(p) match {
           case Const(c) => Const(calcNeg(c))

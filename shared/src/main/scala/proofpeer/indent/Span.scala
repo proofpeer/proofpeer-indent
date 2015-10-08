@@ -85,11 +85,7 @@ final object Span {
   type Layout = Vector[Span] 
 
   def layoutsAreEqual(u : Layout, v : Layout) : Boolean = {
-    val size = u.size
-    if (size != v.size) return false
-    for (i <- 0 until size) 
-      if (u(i) != v(i)) return false
-    return true
+    u == v
   }
 
   def emptyLayout(firstIndexIncl : Int, rhsSize : Int) : Layout = {

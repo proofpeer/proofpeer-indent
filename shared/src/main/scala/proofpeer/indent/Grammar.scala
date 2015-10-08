@@ -48,7 +48,8 @@ trait ParseContext extends Dynamic {
 }
 
 case class ParseRule(symbol : String, rhs : Vector[IndexedSymbol],  
-  params : Vector[ParseParam], constraint : Constraint, action : ParseContext => Any) extends Rule
+  params : Vector[ParseParam], constraint : Constraint, result : ParseParam,
+  action : ParseContext => Any) extends Rule
 
 trait AmbiguityResolution {
   def computeValue(nonterminal : String, span : Span, alternatives : Vector[ParseTree]) : Any
@@ -82,6 +83,10 @@ object GrammarError {
     override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in one of the parameters but is not available at that point in the definition of '" + symbol + "'."    
   }
 
+  case class UnexpectedResult(symbol : String, rule : Int) extends GrammarError {
+    override def toString : String = "The symbol '" + symbol + "' is nullable, but one of its nullable rules has a result."
+  }
+
 }
 
 class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[AmbiguityResolution])
@@ -111,7 +116,8 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               case None => parseSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
-            val symbols = Constraint.collectSymbols(rule.constraint) ++ ParseParam.collectSymbols(rule.params)
+            val symbols = Constraint.collectSymbols(rule.constraint) ++ 
+              ParseParam.collectSymbols(rule.params) ++ ParseParam.collectSymbols(rule.result)
             val indexedSymbol = IndexedSymbol(rule.symbol, None)
             val symbolsOfRule = rule.rhs :+ indexedSymbol
             val frequency = symbolsOfRule.groupBy(l => l).map(t => (t._1, t._2.size))
@@ -134,6 +140,11 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               parsedSymbols = parsedSymbols + rule.rhs(paramIndex)
               paramIndex = paramIndex + 1
             }
+            val usedSymbols = ParseParam.collectSymbols(rule.result)
+            if (!(usedSymbols subsetOf parsedSymbols)) {
+              for (s <- usedSymbols -- parsedSymbols)
+                errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
+            }
           case rule : ScanRule =>
             scanSymbols.get(rule.symbol) match {
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
@@ -151,17 +162,22 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
         }
       }
       ruleindex = 0
+      val nullables = nullableNonterminals
       for (rule <- rules) {
         rule match {
           case rule : ScanRule =>
           case rule : ParseRule =>
+            var nullable : Boolean = true
             for (indexedSymbol <- rule.rhs) {
               if (!scanSymbols.get(indexedSymbol.symbol).isDefined
                   && !parseSymbols.get(indexedSymbol.symbol).isDefined)
               {
                 errors :+= UnknownSymbol(indexedSymbol.symbol, rule.symbol, ruleindex)
               }
+              if (!nullables.contains(indexedSymbol.symbol)) nullable = false
             }
+            if (nullable && rule.result != ParseParam.Const(earley.Earley.DEFAULT_RESULT)) 
+              errors :+= UnexpectedResult(rule.symbol, ruleindex)
             parseSymbols.get(rule.symbol) match {
               case None => parseSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))

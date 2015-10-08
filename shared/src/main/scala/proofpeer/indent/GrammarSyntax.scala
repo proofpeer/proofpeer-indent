@@ -33,8 +33,8 @@ object GrammarSyntax {
   private type Symbol = (IndexedSymbol, ParseParam)
   private type Qualifier = Constraint.LayoutQualifier
 
-  private def r(terminal : String, regex : RegularExpr) : Grammar = 
-    Grammar(ScanRule(terminal, "", None, Lexer.untilWhitespace(regex)))
+  private def r(terminal : String, regex : RegularExpr, priority : Option[Int] = None) : Grammar = 
+    Grammar(ScanRule(terminal, "", priority, Lexer.untilWhitespace(regex)))
 
   private def r(q : String) : Grammar = r(q, string(q, false))
 
@@ -42,7 +42,8 @@ object GrammarSyntax {
     action : ParseContext => Any) : Grammar = 
   {
     val r = string2rhs(rhs)
-    Grammar(ParseRule(nonterminal, r, ParseParam.noParams(r.length), constraint, action))
+    Grammar(ParseRule(nonterminal, r, ParseParam.noParams(r.length), constraint, 
+      ParseParam.Const(earley.Earley.DEFAULT_RESULT), action))
   }
 
   private def r(nonterminal : String, rhs : String, action : ParseContext => Any) : Grammar = 
@@ -70,6 +71,8 @@ object GrammarSyntax {
     r("BAR", char('|')) ++
     r("DOT", char('.')) ++
     r("COMMA", char(',')) ++
+    r("CURLYOPEN", char('{')) ++
+    r("CURLYCLOSE", char('}')) ++
     r("FIRSTROW") ++
     r("LASTROW") ++
     r("MAXROWGAP") ++
@@ -81,6 +84,7 @@ object GrammarSyntax {
     r("MAX") ++
     r("MIN") ++
     r("NIL") ++
+    r("VAL") ++
     r("Identifier", "ID", c => string2IndexedSymbol(c.text)) ++
     r("AtomicParam", "CURRENT", c => ParseParam.Current) ++
     r("AtomicParam", "NUM", c => ParseParam.Const(ParseParam.INT(c.text.toInt))) ++
@@ -89,6 +93,7 @@ object GrammarSyntax {
     r("LayoutParam", "AtomicParam", _.AtomicParam[ParseParam]) ++
     r("LayoutParam", "Identifier DOT Qualifier", 
       c => ParseParam.LayoutEntity(c.Qualifier[Qualifier].apply(c.Identifier[IndexedSymbol]))) ++
+    r("LayoutParam", "Identifier DOT VAL", c => ParseParam.VResult(c.Identifier[IndexedSymbol])) ++
     r("Qualifier", "FIRSTROW", c => Constraint.FirstRow) ++
     r("Qualifier", "LASTROW", c => Constraint.LastRow) ++
     r("Qualifier", "MAXROWGAP", c => Constraint.MaxRowGap) ++
@@ -122,7 +127,10 @@ object GrammarSyntax {
     r("Symbol", "Identifier", c => (c.Identifier[IndexedSymbol], ParseParam.Const(ParseParam.NIL))) ++
     r("Symbol", "Identifier AtomicParam", c => (c.Identifier[IndexedSymbol], c.AtomicParam[ParseParam])) ++
     r("Symbols", "", c => Vector[Symbol]()) ++
-    r("Symbols", "Symbols Symbol", c => c.Symbols[Vector[Symbol]] :+ c.Symbol[Symbol])
+    r("Symbols", "Symbols Symbol", c => c.Symbols[Vector[Symbol]] :+ c.Symbol[Symbol]) ++
+    r("SymbolsAndResult", "Symbols CURLYOPEN Param CURLYCLOSE",
+      c => (c.Symbols[Vector[Symbol]], c.Param[ParseParam])) ++
+    r("SymbolsAndResult", "Symbols", c => (c.Symbols[Vector[Symbol]], ParseParam.Const(earley.Earley.DEFAULT_RESULT)))
 
   private val parser = new Parser(grammar, true)
   
@@ -135,11 +143,14 @@ object GrammarSyntax {
   def parseParam(param : String) : Option[IndexedSymbol] = 
     parse("Param", param)
 
-  def parseSymbol(symbol : String) : Option[(IndexedSymbol, ParseParam)] =
+  def parseSymbol(symbol : String) : Option[Symbol] =
     parse("Symbol", symbol)
 
-  def parseSymbols(rhs : String) : Option[Vector[(IndexedSymbol, ParseParam)]] =
+  def parseSymbols(rhs : String) : Option[Vector[Symbol]] =
     parse("Symbols", rhs)
+
+  def parseSymbolsAndResult(rhs : String) : Option[(Vector[Symbol], ParseParam)] =
+    parse("SymbolsAndResult", rhs)
 
 
 }

@@ -8,9 +8,12 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
   var nextSymbolIsNullable : Boolean = false
   var nextCoreItem : Int = -1
   var predictedCoreItems : Array[Int] = null
-  var evalConstraint : (ParseParam.V, Span.Layout) => Boolean = (param : ParseParam.V, layout : Span.Layout) => true 
-  var evalParam : (ParseParam.V, Span.Layout, Int) => ParseParam.V = 
-    { case (param, layout, i) => Earley.DEFAULT_PARAM }
+  var evalConstraint : (ParseParam.V, Span.Layout, ParseParam.Results) => Boolean = 
+    (param : ParseParam.V, layout : Span.Layout, results : ParseParam.Results) => true 
+  var evalParam : (ParseParam.V, Span.Layout, ParseParam.Results, Int) => ParseParam.V = 
+    { case (param, layout, results, i) => Earley.DEFAULT_PARAM }
+  var evalResult : (ParseParam.V, Span.Layout, ParseParam.Results) => ParseParam.V = 
+    { case (param, layout, results) => Earley.DEFAULT_PARAM }
 } 
 
 final class EarleyAutomaton(val grammar : Grammar) {
@@ -57,7 +60,8 @@ final class EarleyAutomaton(val grammar : Grammar) {
       for (rule <- rules) {
         val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
         val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
-        val evalParam = ParseParam.evalParams(rule.params, s => rhsIndices(s))
+        val evalParam = ParseParam.evaluateParams(rule.params, s => rhsIndices(s))
+        val evalResult = ParseParam.evaluateParam(rule.result, s => rhsIndices(s))
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           if (Earley.debug)
@@ -81,8 +85,8 @@ final class EarleyAutomaton(val grammar : Grammar) {
           Constraint.evalConstraint(rule.constraint, f) match {
             case Some(eval) => 
               coreItem.evalConstraint = { 
-                case (param, layout) => 
-                  eval(param, layout) match {
+                case (param, layout, results) => 
+                  eval(param, layout, results) match {
                     case Some(q) => q
                     case None => true
                   }
@@ -90,6 +94,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
             case _ =>
           }
           coreItem.evalParam = evalParam
+          coreItem.evalResult = evalResult
           states += (id -> coreItem)
           idOfCoreItem += (coreItem -> id)
         }
@@ -198,5 +203,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
     if (i == coreItem.dot) s = s + ". "
     s
   }
+
+  def nullresult(nonterminalId : Int) : ParseParam.V = Earley.DEFAULT_RESULT
 
 }
