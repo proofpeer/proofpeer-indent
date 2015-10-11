@@ -88,20 +88,16 @@ final class EarleyAutomaton(val grammar : Grammar) {
               if (i < dot) Some(i) else None                            
             }
           }
-          val undefinedValue = true
           Constraint.evalConstraint(rule.constraint, f) match {
             case Some(eval) => 
               coreItem.evalConstraint = { 
                 case (param, layout, results) => 
                   eval(param, layout, results) match {
                     case Some(q) => q
-                    case None => undefinedValue
+                    case None => true
                   }
               }
-            case _ => 
-              coreItem.evalConstraint = { 
-                case (param, layout, results) => undefinedValue
-              }            
+            case _ =>
           }
           coreItem.evalParam = evalParam
           coreItem.evalResult = evalResult

@@ -51,7 +51,7 @@ object TestGrammarWithParameters extends Properties("GrammarWithParameters") {
   property("cyclicresult3") = parse("C5", "123") == Some("xxxxx")
   property("cyclicresult4") = parse("C6", "123") == None
 
-  property("resultInConstraint1") = parse("Q", "1 2") == None
+  property("resultInConstraint1") = parse("Q", "1 2") == Some("")
   property("resultInConstraint2") = parse("X", "1") == Some("")
 
 
