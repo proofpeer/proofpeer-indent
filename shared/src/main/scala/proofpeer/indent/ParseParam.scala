@@ -34,9 +34,28 @@ final object ParseParam {
     u == v
   }
 
-  def emptyResults : Results = Vector[V]()
+  private def completeResults(results : Results, param : V, layout : Span.Layout, coreItem : earley.CoreItem) : Results = 
+  {
+    if (results.size < coreItem.rhs.size) results
+    else {
+      val r = coreItem.evalResult(param, layout, results)
+      val results1 = results :+ r
+      if (results1.size != layout.size || layout.size != coreItem.rhs.size + 1)
+        throw new RuntimeException("internal error: failed the sanity check in completeResults")
+      results1
+    }
+  }
 
-  def addToResults(results : Results, result : V) : Results = results :+ result
+  def emptyResults(param : V, layout : Span.Layout, coreItem : earley.CoreItem) : Results = 
+    completeResults(Vector[V](), param, layout, coreItem)
+
+  def addToResults(results : Results, result : V, param : V, 
+    layout : Span.Layout, coreItem : earley.CoreItem) : Results = 
+  {   
+    completeResults(results :+ result, param, layout, coreItem)
+  }
+
+  def getResult(results : Results) : V = results(results.size - 1)
 
   final case class Const(v : V) extends ParseParam
   final case object Current extends ParseParam
@@ -55,26 +74,46 @@ final object ParseParam {
     Vector.fill(l)(ParseParam.Const(ParseParam.NIL))
   }
 
-  def collectSymbols(param : ParseParam) : Set[IndexedSymbol] = {
+  def collectLayoutSymbols(param : ParseParam) : Set[IndexedSymbol] = {
     param match {
       case _ : Const => Set()
       case Current => Set()
       case LayoutEntity(e) => Set(e.s)
-      case VResult(s) => Set(s)
-      case Cons(p, q) => collectSymbols(p) ++ collectSymbols(q)
-      case Add(p, q) => collectSymbols(p) ++ collectSymbols(q)
-      case Sub(p, q) => collectSymbols(p) ++ collectSymbols(q)
-      case Neg(p) => collectSymbols(p)     
-      case Min(p) => collectSymbols(p)
-      case Max(p) => collectSymbols(p)
-      case Select(p, _) => collectSymbols(p)
-      case Alternative(p, q) => collectSymbols(p) ++ collectSymbols(q)
+      case VResult(s) => Set()
+      case Cons(p, q) => collectLayoutSymbols(p) ++ collectLayoutSymbols(q)
+      case Add(p, q) => collectLayoutSymbols(p) ++ collectLayoutSymbols(q)
+      case Sub(p, q) => collectLayoutSymbols(p) ++ collectLayoutSymbols(q)
+      case Neg(p) => collectLayoutSymbols(p)     
+      case Min(p) => collectLayoutSymbols(p)
+      case Max(p) => collectLayoutSymbols(p)
+      case Select(p, _) => collectLayoutSymbols(p)
+      case Alternative(p, q) => collectLayoutSymbols(p) ++ collectLayoutSymbols(q)
     }
   }
 
-  def collectSymbols(params : Vector[ParseParam]) : Set[IndexedSymbol] = {
+  def collectResultSymbols(param : ParseParam) : Set[IndexedSymbol] = {
+    param match {
+      case _ : Const => Set()
+      case Current => Set()
+      case LayoutEntity(e) => Set()
+      case VResult(s) => Set(s)
+      case Cons(p, q) => collectResultSymbols(p) ++ collectResultSymbols(q)
+      case Add(p, q) => collectResultSymbols(p) ++ collectResultSymbols(q)
+      case Sub(p, q) => collectResultSymbols(p) ++ collectResultSymbols(q)
+      case Neg(p) => collectResultSymbols(p)     
+      case Min(p) => collectResultSymbols(p)
+      case Max(p) => collectResultSymbols(p)
+      case Select(p, _) => collectResultSymbols(p)
+      case Alternative(p, q) => collectResultSymbols(p) ++ collectResultSymbols(q)
+    }
+  }
+
+  def collectAllSymbols(param : ParseParam) : Set[IndexedSymbol] =
+    collectLayoutSymbols(param) ++ collectResultSymbols(param)
+
+  def collectAllSymbols(params : Vector[ParseParam]) : Set[IndexedSymbol] = {
     var symbols : Set[IndexedSymbol] = Set()
-    for (p <- params) symbols = symbols ++ collectSymbols(p)
+    for (p <- params) symbols = symbols ++ collectAllSymbols(p)
     symbols
   }
 
@@ -85,27 +124,24 @@ final object ParseParam {
     (param : V, layout : Span.Layout, results : Results, i : Int) => evals(i)(param, layout, results)
   }
 
-  private def error[T](s : String) : T =
-    throw new RuntimeException(s)
-
   private def calcAdd(p : V, q : V) : V = {
     (p, q) match {
       case (INT(x), INT(y)) => INT(x + y)
-      case _ => error ("calcAdd " + p + " " + q)
+      case _ => NIL
     }  
   }
 
   private def calcSub(p : V, q : V) : V = {
     (p, q) match {
       case (INT(x), INT(y)) => INT(x - y)
-      case _ => error ("calcSub " + p + " " + q)
+      case _ => NIL
     }  
   }
 
   private def calcNeg(p : V) : V = {
     p match {
       case INT(x) => INT(-x)
-      case _ => error ("calcNeg " + p)
+      case _ => NIL
     }
   }
 
@@ -113,14 +149,13 @@ final object ParseParam {
     p match {
       case NIL => p
       case _ : INT => p
-      case LIST(NIL, q) => calcMax(q)
-      case LIST(p @ INT(x), q) =>
-        calcMax(q) match {
-          case NIL => p
-          case q @ INT(y) => if (x >= y) p else q
-          case q => error("calcMax " + p + " " + q)
+      case LIST(head, tail) => 
+        (calcMax(head), calcMax(tail)) match {
+          case (p @ INT(x), q @ INT(y)) => if (x >= y) p else q
+          case (p @ INT(_), _) => p
+          case (_, q @ INT(_)) => q
+          case (_, _) => NIL
         }
-      case _ => error("calcMax " + p)
     }
   }
 
@@ -128,14 +163,13 @@ final object ParseParam {
     p match {
       case NIL => p
       case _ : INT => p
-      case LIST(NIL, q) => calcMin(q)
-      case LIST(p @ INT(x), q) =>
-        calcMin(q) match {
-          case NIL => p
-          case q @ INT(y) => if (x <= y) p else q
-          case q => error("calcMin " + p + " " + q)
+      case LIST(head, tail) => 
+        (calcMin(head), calcMin(tail)) match {
+          case (p @ INT(x), q @ INT(y)) => if (x <= y) p else q
+          case (p @ INT(_), _) => p
+          case (_, q @ INT(_)) => q
+          case (_, _) => NIL
         }
-      case _ => error("calcMin " + p)
     }
   }
 
@@ -143,25 +177,16 @@ final object ParseParam {
     p match {
       case LIST(p, q) if index == 1 => p
       case LIST(p, q) if index > 1 => calcSelect(q, index-1)
-      case _ => error("calcSelect " + p + " " + index)
+      case _ => NIL
     }
-  }
-
-  def toInt(p : V) : Int = {
-    p match {
-      case ParseParam.INT(p) => p
-      case _ => throw new RuntimeException("INT parameter expected, found: " + p)
-    } 
   }
     
   def toOptionInt(p : V) : Option[Int] = {
     p match {
-      case ParseParam.NIL => None
       case ParseParam.INT(p) => Some(p)
-      case _ => throw new RuntimeException("INT or NIL parameter expected, found: " + p)
+      case _ => None
     } 
   }
-
 
   private def isConst(p : ParseParam) : Boolean = {
     p match {
@@ -170,13 +195,6 @@ final object ParseParam {
     }
   }
   
-  private def destConst(p : ParseParam) : V = {
-    p match {
-      case Const(v) => v
-      case _ => throw new RuntimeException("cannot destConst " + p)
-    }
-  }
-
   def evaluateParam(param : ParseParam, f : IndexedSymbol => Int) :
     (V, Span.Layout, Results) => V = 
   {

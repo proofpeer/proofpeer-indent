@@ -118,9 +118,12 @@ final class Earley(ea : EarleyAutomaton) {
     val bin = new Bin(pool)
     for (coreItemId <- 0 until ea.coreItems.size) {
       val coreItem = ea.coreItems(coreItemId)
-      if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) 
-        bin.addItem(coreItemId, DEFAULT_PARAM, 0, Span.emptyLayout(0, coreItem.rhs.size), 
-          ParseParam.emptyResults)
+      if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) {
+        val param = DEFAULT_PARAM
+        val layout = Span.emptyLayout(0, coreItem.rhs.size)
+        val results = ParseParam.emptyResults(param, layout, coreItem)
+        bin.addItem(coreItemId, param, 0, layout, results) 
+      }
     }
     bin
   }
@@ -142,13 +145,13 @@ final class Earley(ea : EarleyAutomaton) {
         for (predictedItem <- coreItem.predictedCoreItems) {
           val predictedCoreItem = ea.coreItems(predictedItem)
           val layout = Span.emptyLayout(k, predictedCoreItem.rhs.size)
-          val results = ParseParam.emptyResults
+          val results = ParseParam.emptyResults(nextSymbolParam, layout, predictedCoreItem)
           bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
         }
         if (coreItem.nextSymbolIsNullable) {
           val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, 
             Span.nullSpan(k, k))
-          val results = ParseParam.addToResults(item.results, ea.nullresult(nextSymbol))
+          val results = ParseParam.addToResults(item.results, ea.nullresult(nextSymbol), param, layout, coreItem)
           val nextCoreItemId = coreItem.nextCoreItem
           val nextCoreItem = ea.coreItems(nextCoreItemId)
           if (nextCoreItem.evalConstraint(param, layout, results))
@@ -157,19 +160,18 @@ final class Earley(ea : EarleyAutomaton) {
       } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
         val span = Span.getSpanOfLayout(item.layout)
-        val result = coreItem.evalResult(param, item.layout, item.results)
+        val result = ParseParam.getResult(item.results)
         var originItem = bins(item.origin).processedItems
         while (originItem != null) {
           val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
             val p = originCoreItem.evalParam(originItem.param, originItem.layout, originItem.results, originCoreItem.dot)
             if (p == param) {
-              val layout = Span.addToLayout(originItem.origin, originCoreItem.rhs.size,
-                originItem.layout, span)
-              val results = ParseParam.addToResults(originItem.results, result)
+              val layout = Span.addToLayout(originItem.origin, originCoreItem.rhs.size, originItem.layout, span)
+              val results = ParseParam.addToResults(originItem.results, result, originItem.param, layout, originCoreItem)
               val nextCoreItemId = originCoreItem.nextCoreItem
               val nextCoreItem = ea.coreItems(nextCoreItemId)
-              if (nextCoreItem.evalConstraint(param, layout, results)) 
+              if (nextCoreItem.evalConstraint(originItem.param, layout, results)) 
                 bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout, results)
             }
           }
@@ -211,7 +213,7 @@ final class Earley(ea : EarleyAutomaton) {
           case Some((len, result)) =>
             val span = Span(column0, row, column, k, len) 
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
-            val results = ParseParam.addToResults(item.results, result)
+            val results = ParseParam.addToResults(item.results, result, item.param, layout, coreItem)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
             if (nextCoreItem.evalConstraint(item.param, layout, results)) {
               val scope = ea.scopeOfTerminal(terminal)
@@ -249,7 +251,7 @@ final class Earley(ea : EarleyAutomaton) {
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
             for (t <- candidateTerminals) {
-              val results = ParseParam.addToResults(item.results, t._3)
+              val results = ParseParam.addToResults(item.results, t._3, item.param, layout, coreItem)
               if (nextCoreItem.evalConstraint(item.param, layout, results)) {
                 destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results)
               }
@@ -335,7 +337,7 @@ final class Earley(ea : EarleyAutomaton) {
           item.param == param && item.origin == startPosition) 
         {
           if (result != null) {
-            val r = coreItem.evalResult(item.param, item.layout, item.results)
+            val r = ParseParam.getResult(item.results)
             if (r == result) foundItems = item :: foundItems
           } else 
             foundItems = item :: foundItems

@@ -105,8 +105,8 @@ object GrammarSyntax {
     r("DotFun", "NUM", c => (p : ParseParam) => ParseParam.Select(p, c.text.toInt)) ++
     r("DotFun", "MIN", c => (p : ParseParam) => ParseParam.Min(p)) ++
     r("DotFun", "MAX", c => (p : ParseParam) => ParseParam.Max(p)) ++
-    r("DottedParam", "AtomicParam DOT DotFun", 
-      c => c.DotFun[ParseParam => ParseParam].apply(c.AtomicParam[ParseParam])) ++
+    r("DottedParam", "DottedParam DOT DotFun", 
+      c => c.DotFun[ParseParam => ParseParam].apply(c.DottedParam[ParseParam])) ++
     r("DottedParam", "LayoutParam", _.LayoutParam[ParseParam]) ++
     r("NegParam", "DottedParam", _.DottedParam[ParseParam]) ++
     r("NegParam", "MINUS NegParam", c => ParseParam.Neg(c.NegParam[ParseParam])) ++

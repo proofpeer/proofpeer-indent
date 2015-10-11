@@ -61,7 +61,13 @@ final class EarleyAutomaton(val grammar : Grammar) {
         val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
         val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
         val evalParam = ParseParam.evaluateParams(rule.params, s => rhsIndices(s))
-        val evalResult = ParseParam.evaluateParam(rule.result, s => rhsIndices(s))
+        def g(s : IndexedSymbol) : Int = {
+          if (s.index == None && s.symbol == rule.symbol) 
+            rule.rhs.size
+          else 
+            rhsIndices(s)
+        }
+        val evalResult = ParseParam.evaluateParam(rule.result, g _)
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           if (Earley.debug)

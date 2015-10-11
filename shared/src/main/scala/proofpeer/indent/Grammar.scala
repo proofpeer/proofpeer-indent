@@ -117,7 +117,7 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
             val symbols = Constraint.collectSymbols(rule.constraint) ++ 
-              ParseParam.collectSymbols(rule.params) ++ ParseParam.collectSymbols(rule.result)
+              ParseParam.collectAllSymbols(rule.params) ++ ParseParam.collectAllSymbols(rule.result)
             val indexedSymbol = IndexedSymbol(rule.symbol, None)
             val symbolsOfRule = rule.rhs :+ indexedSymbol
             val frequency = symbolsOfRule.groupBy(l => l).map(t => (t._1, t._2.size))
@@ -132,7 +132,7 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
             var paramIndex = 0
             var parsedSymbols : Set[IndexedSymbol] = Set()
             while (paramIndex < rule.params.size) {
-              val usedSymbols = ParseParam.collectSymbols(rule.params(paramIndex))
+              val usedSymbols = ParseParam.collectAllSymbols(rule.params(paramIndex))
               if (!(usedSymbols subsetOf parsedSymbols)) {
                 for (s <- usedSymbols -- parsedSymbols) 
                   errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
@@ -140,11 +140,18 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               parsedSymbols = parsedSymbols + rule.rhs(paramIndex)
               paramIndex = paramIndex + 1
             }
-            val usedSymbols = ParseParam.collectSymbols(rule.result)
-            if (!(usedSymbols subsetOf parsedSymbols)) {
-              for (s <- usedSymbols -- parsedSymbols)
+
+            val usedLayoutSymbols = ParseParam.collectLayoutSymbols(rule.result)
+            val usedResultSymbols = ParseParam.collectResultSymbols(rule.result)
+            if (!(usedResultSymbols subsetOf parsedSymbols)) {
+              for (s <- usedResultSymbols -- parsedSymbols)
                 errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
             }
+            if (!(usedLayoutSymbols subsetOf (parsedSymbols + indexedSymbol))) {
+              for (s <- (usedLayoutSymbols -- parsedSymbols) - indexedSymbol)
+                errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
+            }
+
           case rule : ScanRule =>
             scanSymbols.get(rule.symbol) match {
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
@@ -176,8 +183,8 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               }
               if (!nullables.contains(indexedSymbol.symbol)) nullable = false
             }
-            if (nullable && rule.result != ParseParam.Const(earley.Earley.DEFAULT_RESULT)) 
-              errors :+= UnexpectedResult(rule.symbol, ruleindex)
+            /*if (nullable && rule.result != ParseParam.Const(earley.Earley.DEFAULT_RESULT)) 
+              errors :+= UnexpectedResult(rule.symbol, ruleindex) */
             parseSymbols.get(rule.symbol) match {
               case None => parseSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))

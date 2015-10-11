@@ -21,7 +21,15 @@ object TestGrammarWithParameters extends Properties("GrammarWithParameters") {
     rule("Num12", "Num2 {Num2.val}", c => c.Num2[String] + "(2)") ++
     rule("N", "Num12", _.Num12[String]) ++
     rule("N1", "Num12", Eq(Result("Num12"), Zero, 1), _.Num12[String]) ++
-    rule("N2", "Num12", Eq(Result("Num12"), Zero, 2), _.Num12[String])
+    rule("N2", "Num12", Eq(Result("Num12"), Zero, 2), _.Num12[String]) ++
+    rule("C", "Digits {0}", c => "") ++
+    rule("C", "C_1 {C_1.val + 1}", Leq(Result("C_1"), Zero, 4), c => c.C_1[String] + "x") ++
+    rule("C3", "C", Eq(Result("C"), Zero, 3), _.C[String]) ++
+    rule("C5", "C", Eq(Result("C"), Zero, 5), _.C[String]) ++
+    rule("C6", "C", Eq(Result("C"), Zero, 6), _.C[String]) ++
+    rule("Q", "Digits_1 Digits_2", Eq(Result("Digits_2"), Zero, 0), c => "") ++
+    rule("X", "Digits {X.leftMost}", Eq(Result("X"), LeftMost("X"), 0), c => "")
+
 
   val parser = Parser(grammar)
   def parse(nonterminal : String, s : String) = parser.parse[String](nonterminal, s)
@@ -37,5 +45,16 @@ object TestGrammarWithParameters extends Properties("GrammarWithParameters") {
   property("result5") = parse("N", "007") == None
   property("result6") = parse("N1", "007") == Some("007(1)")
   property("result7") = parse("N2", "007") == Some("007(2)")
+
+  property("cyclicresult1") = parse("C", "123") == None
+  property("cyclicresult2") = parse("C3", "123") == Some("xxx")
+  property("cyclicresult3") = parse("C5", "123") == Some("xxxxx")
+  property("cyclicresult4") = parse("C6", "123") == None
+
+  property("resultInConstraint1") = parse("Q", "1 2") == Some("")
+  property("resultInConstraint2") = parse("X", "1") == Some("")
+
+
+
 
 }

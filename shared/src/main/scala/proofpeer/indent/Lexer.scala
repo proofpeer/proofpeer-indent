@@ -19,10 +19,10 @@ object Lexer {
 
   private def simpleLayout(ok : (Int, Int, Int, Int) => Boolean) : Layout = {
     (p : ParseParam.V) => {
-      val List(minColumn, maxStartColumn, maxStartRow) =
-        ParseParam.v2Ints(List(Int.MinValue, Int.MaxValue, Int.MaxValue), p)
+      val List(minColumn, minRow, maxStartColumn, maxStartRow) =
+        ParseParam.v2Ints(List(Int.MinValue, Int.MinValue, Int.MaxValue, Int.MaxValue), p)
       def start(row : Int, column : Int) : Boolean = 
-        column >= minColumn && row <= maxStartRow && column <= maxStartColumn
+        column >= minColumn && row >= minRow && row <= maxStartRow && column <= maxStartColumn
       def continue(lastRow : Int, lastColumn : Int, row : Int, column : Int) =
         column >= minColumn && ok(lastRow, lastColumn, row, column)
       (start _, continue _)
