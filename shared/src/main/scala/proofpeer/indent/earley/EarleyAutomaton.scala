@@ -70,14 +70,15 @@ final class EarleyAutomaton(val grammar : Grammar) {
         val evalResult = ParseParam.evaluateParam(rule.result, g _)
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
-          if (Earley.debug)
-            println("coreItem " + id + ": " + symbol + " => " + rule.rhs + " (dot = " + dot +")")
           val coreItem = new CoreItem(nonterminal, ruleindex, dot)
           coreItem.rhs = rhs
           coreItem.nextSymbol = 
             if (dot == rule.rhs.size) 0 else idOfSymbol(rule.rhs(dot).symbol)
           coreItem.nextSymbolIsNullable  = 
-            if (coreItem.nextSymbol <= 0) false else grammar.nullableNonterminals.contains(rule.rhs(dot).symbol)
+            if (coreItem.nextSymbol <= 0) 
+              false 
+            else 
+              grammar.potentiallyNullableNonterminals.contains(rule.rhs(dot).symbol)
           coreItem.nextCoreItem = 
             if (coreItem.nextSymbol == 0) -1 else id + 1
           def f(s : IndexedSymbol) : Option[Int] = {
@@ -101,8 +102,21 @@ final class EarleyAutomaton(val grammar : Grammar) {
           }
           coreItem.evalParam = evalParam
           coreItem.evalResult = evalResult
-          states += (id -> coreItem)
-          idOfCoreItem += (coreItem -> id)
+          if (coreItem.rhs.size == 0) {
+            val nonterminal = nonterminalOfId(coreItem.nonterminal)
+            grammar.potentiallyNullableNonterminals.get(nonterminal) match {
+              case Some(true) =>
+                states += (id -> coreItem)
+                idOfCoreItem += (coreItem -> id)                
+              case Some(false) =>
+                // don't add this core item
+              case None =>
+                // not possible if there are no grammar errors, so don't add this core item
+            }
+          } else {
+            states += (id -> coreItem)
+            idOfCoreItem += (coreItem -> id)
+          }
         }
         ruleindex += 1
       }
@@ -113,13 +127,17 @@ final class EarleyAutomaton(val grammar : Grammar) {
       if (item.nextSymbol > 0) {
         val n = nonterminalOfId(item.nextSymbol)
         val rules = grammar.parserules(n)
-        item.predictedCoreItems = new Array(rules.size)
+        var predictedCoreItems : Vector[Int] = Vector()
         var ruleindex = 0
         for (rule <- rules) {
           val coreItem = new CoreItem(item.nextSymbol, ruleindex, 0)
-          item.predictedCoreItems(ruleindex) = idOfCoreItem(coreItem)
+          idOfCoreItem.get(coreItem) match {
+            case Some(coreItemId) => predictedCoreItems = predictedCoreItems :+ coreItemId
+            case None => 
+          }
           ruleindex += 1
         }
+        item.predictedCoreItems = predictedCoreItems.toArray
       } else {
         item.predictedCoreItems = new Array(0)
       }

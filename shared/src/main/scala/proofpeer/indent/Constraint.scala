@@ -27,6 +27,8 @@ object Constraint {
     and(implies(asm, thenConcl), implies(not(asm), elseConcl))          
 
   def unconstrained : Constraint = And(List())
+
+  def forbidden : Constraint = Or(List())
     
   sealed trait LayoutValue 
   case class LayoutEntity(q : LayoutQualifier, s : IndexedSymbol) extends LayoutValue

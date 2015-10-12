@@ -5,6 +5,7 @@ sealed trait ParseParam
 final object ParseParam {
 
   sealed trait V
+  final case object UNDEFINED extends V
   final case object NIL extends V {
     override def toString = "nil"
   }
@@ -18,6 +19,7 @@ final object ParseParam {
       while(true) {
         l match {
           case NIL => return s + "]"
+          case UNDEFINED => return s + "/undefined]"
           case LIST(head, tail) => 
             s = s + "," + head
             l = tail
@@ -127,6 +129,8 @@ final object ParseParam {
   private def calcAdd(p : V, q : V) : V = {
     (p, q) match {
       case (INT(x), INT(y)) => INT(x + y)
+      case (UNDEFINED, _) => UNDEFINED
+      case (_, UNDEFINED) => UNDEFINED
       case _ => NIL
     }  
   }
@@ -134,6 +138,8 @@ final object ParseParam {
   private def calcSub(p : V, q : V) : V = {
     (p, q) match {
       case (INT(x), INT(y)) => INT(x - y)
+      case (UNDEFINED, _) => UNDEFINED
+      case (_, UNDEFINED) => UNDEFINED
       case _ => NIL
     }  
   }
@@ -141,6 +147,7 @@ final object ParseParam {
   private def calcNeg(p : V) : V = {
     p match {
       case INT(x) => INT(-x)
+      case UNDEFINED => UNDEFINED
       case _ => NIL
     }
   }
@@ -148,12 +155,15 @@ final object ParseParam {
   private def calcMax(p : V) : V = {
     p match {
       case NIL => p
+      case UNDEFINED => UNDEFINED
       case _ : INT => p
       case LIST(head, tail) => 
         (calcMax(head), calcMax(tail)) match {
           case (p @ INT(x), q @ INT(y)) => if (x >= y) p else q
           case (p @ INT(_), _) => p
           case (_, q @ INT(_)) => q
+          case (UNDEFINED, _) => UNDEFINED
+          case (_, UNDEFINED) => UNDEFINED
           case (_, _) => NIL
         }
     }
@@ -162,12 +172,15 @@ final object ParseParam {
   private def calcMin(p : V) : V = {
     p match {
       case NIL => p
+      case UNDEFINED => UNDEFINED
       case _ : INT => p
       case LIST(head, tail) => 
         (calcMin(head), calcMin(tail)) match {
           case (p @ INT(x), q @ INT(y)) => if (x <= y) p else q
           case (p @ INT(_), _) => p
           case (_, q @ INT(_)) => q
+          case (UNDEFINED, _) => UNDEFINED
+          case (_, UNDEFINED) => UNDEFINED
           case (_, _) => NIL
         }
     }
@@ -175,6 +188,7 @@ final object ParseParam {
 
   def calcSelect(p : V, index : Int) : V = {
     p match {
+      case UNDEFINED => UNDEFINED
       case LIST(p, q) if index == 1 => p
       case LIST(p, q) if index > 1 => calcSelect(q, index-1)
       case _ => NIL
@@ -312,6 +326,7 @@ final object ParseParam {
       v match {
         case LIST(INT(x), tail) => x :: v2Ints(defaults.tail, tail)
         case LIST(NIL, tail) => defaults.head :: v2Ints(defaults.tail, tail)
+        case LIST(UNDEFINED, tail) => defaults.head :: v2Ints(defaults.tail, tail)        
         case INT(x) => x :: defaults.tail
         case _ => defaults
       }

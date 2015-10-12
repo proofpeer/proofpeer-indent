@@ -83,8 +83,12 @@ object GrammarError {
     override def toString : String = "The symbol '" + ambiguousSymbol + "' is referenced in one of the parameters but is not available at that point in the definition of '" + symbol + "'."    
   }
 
-  case class UnexpectedResult(symbol : String, rule : Int) extends GrammarError {
+  case class UnexpectedResult(symbol : String) extends GrammarError {
     override def toString : String = "The symbol '" + symbol + "' is nullable, but one of its nullable rules has a result."
+  }
+
+  case class NonterminalIsMaybeNullable(nonterminal : String) extends GrammarError {
+    override def toString : String = "Cannot determine whether the nonterminal '" + nonterminal + "' is nullable or not."
   }
 
 }
@@ -151,7 +155,6 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
               for (s <- (usedLayoutSymbols -- parsedSymbols) - indexedSymbol)
                 errors :+= UnavailableLayoutSymbol(s, rule.symbol, ruleindex)
             }
-
           case rule : ScanRule =>
             scanSymbols.get(rule.symbol) match {
               case None => scanSymbols += (rule.symbol -> List(ruleindex))
@@ -169,28 +172,49 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
         }
       }
       ruleindex = 0
-      val nullables = nullableNonterminals
       for (rule <- rules) {
         rule match {
           case rule : ScanRule =>
           case rule : ParseRule =>
-            var nullable : Boolean = true
             for (indexedSymbol <- rule.rhs) {
               if (!scanSymbols.get(indexedSymbol.symbol).isDefined
                   && !parseSymbols.get(indexedSymbol.symbol).isDefined)
               {
                 errors :+= UnknownSymbol(indexedSymbol.symbol, rule.symbol, ruleindex)
               }
-              if (!nullables.contains(indexedSymbol.symbol)) nullable = false
             }
-            /*if (nullable && rule.result != ParseParam.Const(earley.Earley.DEFAULT_RESULT)) 
-              errors :+= UnexpectedResult(rule.symbol, ruleindex) */
             parseSymbols.get(rule.symbol) match {
               case None => parseSymbols += (rule.symbol -> List(ruleindex))
               case Some(indices) => parseSymbols += (rule.symbol -> (indices :+ ruleindex))
             }
         }
         ruleindex += 1
+      }
+
+      errors ++ checkNullability()
+    }
+
+    private def checkNullability() : Vector[GrammarError] = {
+      val nullables = potentiallyNullableNonterminals
+      var errors : Vector[GrammarError] = Vector()
+      for ((nonterminal, isNullable) <- nullables)
+        if (!isNullable) errors = errors :+ GrammarError.NonterminalIsMaybeNullable(nonterminal)
+      if (errors.isEmpty) {
+        for ((nonterminal, rules) <- parserules) {
+          if (nullables.contains(nonterminal)) {
+            var ruleindex = 0
+            for (rule <- rules) {
+              if (rule.rhs.forall(s => nullables.contains(s.symbol))) {
+                if (evalConstraintForNullspans(rule, ruleindex) != Some(false) && 
+                  rule.result != ParseParam.Const(ParseParam.NIL)) 
+                {
+                  errors = errors :+ GrammarError.UnexpectedResult(nonterminal)
+                } 
+              }
+              ruleindex += 1
+            }
+          }
+        }        
       }
       errors
     }
@@ -233,19 +257,50 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
 
     lazy val errors = check()
 
-    lazy val nullableNonterminals : Set[String] = {
-      var nullable : Set[String] = Set()
+    private def evalConstraintForNullspans(rule : ParseRule, ruleindex : Int) : Option[Boolean] = 
+    {
+      val constraint = rule.constraint
+      val rhsSize = rule.rhs.size
+      val indices = rhsIndices(rule.symbol, ruleindex) + (IndexedSymbol(rule.symbol, None) -> rhsSize)
+      Constraint.evalConstraint(constraint, s => indices.get(s)) match {
+        case Some(eval) => 
+          val param = ParseParam.UNDEFINED
+          val nullspan = Span.nullSpan(0, 0)
+          val layout = Vector.fill(rhsSize + 1)(nullspan)
+          val results = Vector.fill(rhsSize + 1)(ParseParam.UNDEFINED)
+          eval(param, layout, results) match {
+            case Some(q) => Some(q)
+            case None => None
+          }
+        case _ => None
+      }
+    }
+
+    /** Nonterminals not being a key in nullableNonterminals are definitely not nullable.
+      * Otherwise, assume potentiallyNullableNonterminals(N) = b. Then N is definitely nullable if b = true,
+      * but if b = false, then it is not clear wether N is nullable or not. */
+    lazy val potentiallyNullableNonterminals : Map[String, Boolean] = {
+      var nullable : Map[String, Boolean] = Map()
       var changed : Boolean = false
       do {
         changed = false
         for ((nonterminal, rules) <- parserules) {
-          if (!nullable.contains(nonterminal)) {
+          val isNullable = nullable.get(nonterminal)
+          if (!(isNullable == Some(true))) {
+            var ruleindex = 0
             for (rule <- rules) {
-              if (rule.rhs.forall(s => nullable.contains(s.symbol)))
-              {
-                nullable += nonterminal
-                changed = true
+              val maybeNullable = rule.rhs.forall(s => nullable.get(s.symbol) != None)
+              if (maybeNullable) {
+                evalConstraintForNullspans(rule, ruleindex) match {
+                  case None => nullable = nullable + (nonterminal -> false)
+                  case Some(true) => 
+                    val definitelyNullable = rule.rhs.forall(s => nullable.get(s.symbol) == Some(true))
+                    nullable = nullable + (nonterminal -> definitelyNullable)
+                  case Some(false) => // do nothing, the nonterminal surely won't be null because of this rule
+                }
+                changed = (changed || (isNullable != nullable.get(nonterminal)))
               }
+              ruleindex += 1
             }
           }
         }

@@ -5,8 +5,6 @@ import proofpeer.indent.regex.DFA
 
 object Earley {
 
-  var debug = false
-
   final val DEFAULT_PARAM : ParseParam.V = ParseParam.NIL
   final val DEFAULT_RESULT : ParseParam.V = ParseParam.NIL
 
@@ -122,7 +120,8 @@ final class Earley(ea : EarleyAutomaton) {
         val param = DEFAULT_PARAM
         val layout = Span.emptyLayout(0, coreItem.rhs.size)
         val results = ParseParam.emptyResults(param, layout, coreItem)
-        bin.addItem(coreItemId, param, 0, layout, results) 
+        if (coreItem.evalConstraint(param, layout, results))
+          bin.addItem(coreItemId, param, 0, layout, results) 
       }
     }
     bin
@@ -146,7 +145,8 @@ final class Earley(ea : EarleyAutomaton) {
           val predictedCoreItem = ea.coreItems(predictedItem)
           val layout = Span.emptyLayout(k, predictedCoreItem.rhs.size)
           val results = ParseParam.emptyResults(nextSymbolParam, layout, predictedCoreItem)
-          bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
+          if (predictedCoreItem.evalConstraint(nextSymbolParam, layout, results))
+            bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
         }
         if (coreItem.nextSymbolIsNullable) {
           val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, 
