@@ -191,6 +191,7 @@ final object ParseParam {
       case UNDEFINED => UNDEFINED
       case LIST(p, q) if index == 1 => p
       case LIST(p, q) if index > 1 => calcSelect(q, index-1)
+      case x : INT if index == 1 => x
       case _ => NIL
     }
   }
