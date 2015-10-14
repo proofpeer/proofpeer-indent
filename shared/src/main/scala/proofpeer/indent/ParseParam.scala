@@ -186,6 +186,14 @@ final object ParseParam {
     }
   }
 
+  private def chooseAlternative(p : V) : Boolean = {
+    p match {
+      case NIL => true
+      case INT(x) => x < 0
+      case _ => false
+    }
+  }
+
   def calcSelect(p : V, index : Int) : V = {
     p match {
       case UNDEFINED => UNDEFINED
@@ -267,7 +275,7 @@ final object ParseParam {
         val ea = evalParam(alternative, f)
         (p : V, layout : Span.Layout, results : Results) => {
           val u = ep(p, layout, results)
-          if (u == NIL) ea(p, layout, results) else u
+          if (chooseAlternative(u)) ea(p, layout, results) else u
         }
     }
   }
@@ -310,7 +318,7 @@ final object ParseParam {
         }
       case Alternative(p, q) =>
         (simp(p), simp(q)) match {
-          case (Const(NIL), q) => q
+          case (Const(c), q) if chooseAlternative(c) => q
           case (p, q) => Alternative(p, q)
         }
       case Cons(p, q) => 
