@@ -46,6 +46,7 @@ object TestGrammarSyntax extends Properties("GrammarSyntax") {
   property("param8") = parseParam("x.val") == Some(VResult(x))
   property("param9") = parseParam("nil.val") == Some(VResult(IndexedSymbol("nil", None)))
   property("param10") = parseParam("~.val") == None
+  property("param11") = parseParam("~ ! 5") == Some(BitSet(Current, 5))
 
   property("symbols1") = parseSymbols("x") == Some(Vector((x, Nil)))
   property("symbols2") = parseSymbols("x x") == Some(Vector((x, Nil), (x, Nil)))

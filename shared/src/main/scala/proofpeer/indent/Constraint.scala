@@ -52,6 +52,8 @@ object Constraint {
 
   final case class NullSpan(symbol : IndexedSymbol) extends Constraint
 
+  final case class TestBit(int : LayoutValue, bit : Int) extends Constraint
+
   /** Denotes integer typed properties of the geometry of s */
   sealed abstract class LayoutQualifier {
     def apply(indexedSymbol : IndexedSymbol) : LayoutEntity = LayoutEntity(this, indexedSymbol)
@@ -148,6 +150,7 @@ object Constraint {
       case Leq(left, right, _) => collectSymbols(left) ++ collectSymbols(right)
       case Eq(left, right, _) => collectSymbols(left) ++ collectSymbols(right)
       case NullSpan(symbol) => Set(symbol)
+      case TestBit(i, _) => collectSymbols(i)
     }
   }
 
@@ -247,6 +250,14 @@ object Constraint {
         case _ => None
       }
 
+  private def TestBitEval(int : Measure, bit : Int) : Evaluator = {
+    if (bit < 0 || bit > 31) throw new RuntimeException("cannot test bit " + bit)
+    (p : V, layout : L, results : R) =>
+      int(p, layout, results) match {
+        case None => None
+        case Some(int) => Some((int & (1 << bit)) != 0)
+      }
+  }
 
   def evalConstraint(constraint : Constraint, f : IndexedSymbol => Option[Int]) : Option[Evaluator] = {
     constraint match {
@@ -310,6 +321,11 @@ object Constraint {
         f(symbol) match {
           case None => None
           case Some(i) => Some((p : V, layout : L, results : R) => Some(layout(i).isNull))
+        }
+      case TestBit(int, bit) =>
+        evalLayoutValue(int, f) match {
+          case None => None
+          case Some(int) => Some(TestBitEval(int, bit))
         }
     }
   }

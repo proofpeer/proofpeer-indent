@@ -69,6 +69,7 @@ final object ParseParam {
   final case class Neg(p : ParseParam) extends ParseParam
   final case class Min(p : ParseParam) extends ParseParam
   final case class Max(p : ParseParam) extends ParseParam
+  final case class BitSet(p : ParseParam, bit : Int) extends ParseParam
   final case class Select(p : ParseParam, index : Int) extends ParseParam
   final case class Alternative(preferred : ParseParam, alternative : ParseParam) extends ParseParam
 
@@ -89,6 +90,7 @@ final object ParseParam {
       case Min(p) => collectLayoutSymbols(p)
       case Max(p) => collectLayoutSymbols(p)
       case Select(p, _) => collectLayoutSymbols(p)
+      case BitSet(p, _) => collectLayoutSymbols(p)
       case Alternative(p, q) => collectLayoutSymbols(p) ++ collectLayoutSymbols(q)
     }
   }
@@ -106,6 +108,7 @@ final object ParseParam {
       case Min(p) => collectResultSymbols(p)
       case Max(p) => collectResultSymbols(p)
       case Select(p, _) => collectResultSymbols(p)
+      case BitSet(p, _) => collectResultSymbols(p)
       case Alternative(p, q) => collectResultSymbols(p) ++ collectResultSymbols(q)
     }
   }
@@ -203,6 +206,15 @@ final object ParseParam {
       case _ => NIL
     }
   }
+
+  def bitSet(p : V, bit : Int) : V = {
+    if (bit < 0 || bit > 31) throw new RuntimeException("cannot set bit " + bit)
+    p match {
+      case UNDEFINED => UNDEFINED
+      case INT(x) => INT(x | (1 << bit))
+      case _ => NIL
+    }
+  }
     
   def toOptionInt(p : V) : Option[Int] = {
     p match {
@@ -270,6 +282,9 @@ final object ParseParam {
       case Select(u, i) =>
         val U = evalParam(u, f)
         (p : V, layout : Span.Layout, results : Results) => calcSelect(U(p, layout, results), i)  
+      case BitSet(u, bit) =>
+        val U = evalParam(u, f)
+        (p : V, layout : Span.Layout, results : Results) => bitSet(U(p, layout, results), bit)
       case Alternative(preferred, alternative) =>
         val ep = evalParam(preferred, f)
         val ea = evalParam(alternative, f)
@@ -315,6 +330,11 @@ final object ParseParam {
         simp(p) match {
           case Const(u) => Const(calcSelect(u, index))
           case u => Select(u, index)
+        }
+      case BitSet(p, bit) => 
+        simp(p) match {
+          case Const(u) => Const(bitSet(u, bit))
+          case u => BitSet(u, bit)
         }
       case Alternative(p, q) =>
         (simp(p), simp(q)) match {

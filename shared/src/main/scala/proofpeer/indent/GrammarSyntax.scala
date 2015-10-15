@@ -71,6 +71,7 @@ object GrammarSyntax {
     r("BAR", char('|')) ++
     r("DOT", char('.')) ++
     r("COMMA", char(',')) ++
+    r("BANG", char('!')) ++
     r("CURLYOPEN", char('{')) ++
     r("CURLYCLOSE", char('}')) ++
     r("FIRSTROW") ++
@@ -115,9 +116,11 @@ object GrammarSyntax {
       c => ParseParam.Add(c.AddParam[ParseParam], c.NegParam[ParseParam])) ++
     r("AddParam", "AddParam MINUS NegParam", 
       c => ParseParam.Sub(c.AddParam[ParseParam], c.NegParam[ParseParam])) ++
-    r("AltParam", "AddParam", _.AddParam[ParseParam]) ++
-    r("AltParam", "AltParam BAR AddParam", 
-      c => ParseParam.Alternative(c.AltParam[ParseParam], c.AddParam[ParseParam])) ++
+    r("BangParam", "BangParam BANG NUM", c => ParseParam.BitSet(c.BangParam[ParseParam], c.text("NUM").toInt)) ++
+    r("BangParam", "AddParam", _.AddParam[ParseParam]) ++
+    r("AltParam", "BangParam", _.BangParam[ParseParam]) ++
+    r("AltParam", "AltParam BAR BangParam", 
+      c => ParseParam.Alternative(c.AltParam[ParseParam], c.BangParam[ParseParam])) ++
     r("Param", "AltParam", _.AltParam[ParseParam]) ++
     r("ParamList", "", c => Vector[ParseParam]()) ++
     r("ParamList", "Param", c => Vector[ParseParam](c.Param[ParseParam])) ++
