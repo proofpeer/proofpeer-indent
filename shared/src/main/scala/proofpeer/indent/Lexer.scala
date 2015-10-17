@@ -57,6 +57,11 @@ object Lexer {
   def untilEnd(regex : RegularExpr) : Lexer = 
     make(regex, simpleLayout((r1, c1, r2, c2) => true))
 
+  def demandLeftBorder(lexer : Lexer, onlyNewline : Boolean) : Lexer = 
+    new DemandLeftBorder(lexer, onlyNewline)
+
+  def demandRightBorder(lexer : Lexer, onlyNewline : Boolean) : Lexer = 
+    new DemandRightBorder(lexer, onlyNewline)
 }
 
 final class DocumentCharacterStream(document : Document, startPosition : Int,
@@ -80,3 +85,40 @@ extends CharacterStream {
   }
 
 }
+
+final class DemandLeftBorder(lexer : Lexer, newline : Boolean) extends Lexer {
+
+  def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
+    var allow : Boolean = false
+    if (startPosition <= 0 || startPosition >= d.size) allow = true
+    else {
+      val (row1, col1, _) = d.character(startPosition - 1)
+      val (row2, col2, _) = d.character(startPosition)
+      if (row1 != row2) allow = true
+      else if (!newline && col1 + 1 < col2) allow = true
+    }
+    if (allow) lexer.lex(d, startPosition, param) else (-1, ParseParam.UNDEFINED)
+  }
+
+}
+
+final class DemandRightBorder(lexer : Lexer, newline : Boolean) extends Lexer {
+
+  def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
+    val R = lexer.lex(d, startPosition, param)
+    if (R._1 > 0) {
+      val endPosition = startPosition + R._1 - 1
+      if (endPosition + 1 >= d.size) return R
+      val (row1, col1, _) = d.character(endPosition)
+      val (row2, col2, _) = d.character(endPosition + 1)
+      if (row1 != row2) return R
+      if (!newline && col1 + 1 < col2) return R
+      (-1, ParseParam.UNDEFINED)
+    } else R
+  }
+
+}
+
+
+
+
