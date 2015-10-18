@@ -57,11 +57,11 @@ object Lexer {
   def untilEnd(regex : RegularExpr) : Lexer = 
     make(regex, simpleLayout((r1, c1, r2, c2) => true))
 
-  def demandLeftBorder(lexer : Lexer, onlyNewline : Boolean) : Lexer = 
-    new DemandLeftBorder(lexer, onlyNewline)
+  def demandLeftBorder(lexer : Lexer, minNewLines : Int = 0) : Lexer = 
+    new DemandLeftBorder(lexer, minNewLines)
 
-  def demandRightBorder(lexer : Lexer, onlyNewline : Boolean) : Lexer = 
-    new DemandRightBorder(lexer, onlyNewline)
+  def demandRightBorder(lexer : Lexer, minNewLines : Int = 0) : Lexer = 
+    new DemandRightBorder(lexer, minNewLines)
 }
 
 final class DocumentCharacterStream(document : Document, startPosition : Int,
@@ -86,7 +86,7 @@ extends CharacterStream {
 
 }
 
-final class DemandLeftBorder(lexer : Lexer, newline : Boolean) extends Lexer {
+final class DemandLeftBorder(lexer : Lexer, minNewLines : Int) extends Lexer {
 
   def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
     var allow : Boolean = false
@@ -94,15 +94,15 @@ final class DemandLeftBorder(lexer : Lexer, newline : Boolean) extends Lexer {
     else {
       val (row1, col1, _) = d.character(startPosition - 1)
       val (row2, col2, _) = d.character(startPosition)
-      if (row1 != row2) allow = true
-      else if (!newline && col1 + 1 < col2) allow = true
+      if (row1 != row2 && row2 - row1 >= minNewLines) allow = true
+      else if (row1 == row2 && minNewLines <= 0 && col1 + 1 < col2) allow = true
     }
     if (allow) lexer.lex(d, startPosition, param) else (-1, ParseParam.UNDEFINED)
   }
 
 }
 
-final class DemandRightBorder(lexer : Lexer, newline : Boolean) extends Lexer {
+final class DemandRightBorder(lexer : Lexer, minNewLines : Int) extends Lexer {
 
   def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
     val R = lexer.lex(d, startPosition, param)
@@ -111,8 +111,8 @@ final class DemandRightBorder(lexer : Lexer, newline : Boolean) extends Lexer {
       if (endPosition + 1 >= d.size) return R
       val (row1, col1, _) = d.character(endPosition)
       val (row2, col2, _) = d.character(endPosition + 1)
-      if (row1 != row2) return R
-      if (!newline && col1 + 1 < col2) return R
+      if (row1 != row2 && row2 - row1 >= minNewLines) return R
+      if (row1 == row2 && minNewLines <= 0 && col1 + 1 < col2) return R
       (-1, ParseParam.UNDEFINED)
     } else R
   }
