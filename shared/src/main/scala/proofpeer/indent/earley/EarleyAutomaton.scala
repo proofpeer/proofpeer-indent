@@ -145,11 +145,12 @@ final class EarleyAutomaton(val grammar : Grammar) {
     (coreItems, idOfCoreItem)
   }
 
-  val (numScopes, scopeOfTerminal, lexerOfTerminal) = {
+  val (numScopes, scopeOfTerminal, lexerOfTerminal, fallbackScope) = {
     var scopes : Map[String, Int] = Map()
     val scopesOfTerminals : Array[Int] = new Array(terminalOfId.size)
     val lexers = new Array[Lexer](terminalOfId.size)
     var scope = 0
+    var fallbackScope = -1
     for (terminal <- grammar.terminals) {
       val scanrule = grammar.scanrules(terminal)
       val terminalId = idOfTerminal(terminal)
@@ -159,6 +160,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
         case None => 
           scopes += (scanrule.scope -> scope)
           scopesOfTerminals(terminalIndex) = scope
+          if (scanrule.scope == FALLBACK_SCOPE) fallbackScope = scope
           scope += 1
         case Some(scope) => 
           scopesOfTerminals(terminalIndex) = scope
@@ -171,7 +173,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
     def lexerOfTerminal(terminalId : Int) : Lexer = {
       lexers((-terminalId) - 1)
     }
-    (scopes.size, scopeOfTerminal _, lexerOfTerminal _)
+    (scopes.size, scopeOfTerminal _, lexerOfTerminal _, fallbackScope)
   }
 
   val terminalPriority = {

@@ -19,7 +19,6 @@ sealed trait Rule {
   def symbol : String
 }
 
-
 case class ScanRule(symbol : String, scope : String, priority : Option[Int], lexer : Lexer) extends Rule
 
 trait ParseContext extends Dynamic {

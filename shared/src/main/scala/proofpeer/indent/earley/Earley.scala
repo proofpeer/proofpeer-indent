@@ -198,7 +198,7 @@ final class Earley(ea : EarleyAutomaton) {
     }
 
     // check which scans are compatible with some layout 
-    var scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
+    val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
     val (row, column, _) = document.character(k)
     val (_, column0, _) = document.character(document.firstPositionInRow(row))
     var item = bins(k).processedItems
@@ -231,6 +231,9 @@ final class Earley(ea : EarleyAutomaton) {
       }
       item = item.nextItem
     }
+
+    // the fallback scope will only be activated if there is no other possibility of scanning
+    if (scopes.size > 1) scopes -= ea.fallbackScope
 
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {

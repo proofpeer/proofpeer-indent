@@ -2,6 +2,8 @@ package proofpeer
 
 package object indent {
 
+  final val FALLBACK_SCOPE = "@$!?£%^€"
+
   import scala.language.implicitConversions
   import proofpeer.general.StringUtils._
 
