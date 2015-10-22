@@ -223,7 +223,7 @@ final class Earley(ea : EarleyAutomaton) {
                 case Some((l, ts)) => 
                   if (len == l)
                     scopes += (scope -> (l, ts + tr))
-                  else if (len > l)
+                  else if ((scope != ea.fallbackScope) == (len > l))
                     scopes += (scope -> (len, Set(tr)))
               }
             }            
