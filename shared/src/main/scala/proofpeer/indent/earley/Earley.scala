@@ -189,49 +189,68 @@ final class Earley(ea : EarleyAutomaton) {
 
     import scala.collection.mutable.{Map => MutableMap}
 
-    // check which terminals actually can be scanned from position k on
-    var scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
-    for (t <- terminals) {
-      val lexer = ea.lexerOfTerminal(t._1)
-      val (len, r) = lexer.lex(document, k, t._2)
-      if (len > 0) scans += (t -> (len, r))
-    }
+    def computeScopes(terminals : List[(Int, ParseParam.V)]) : 
+      MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] =
+    {
 
-    // check which scans are compatible with some layout 
-    val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
-    var item = bins(k).processedItems
-    while (item != null) {
-      val coreItem = ea.coreItemOf(item)
-      if (coreItem.nextSymbol < 0) {
-        val terminal = coreItem.nextSymbol
-        val terminalParam = coreItem.evalParam(item.param, item.layout, item.results, coreItem.dot)
-        val t = (terminal -> terminalParam)
-        scans.get(t) match {
-          case None =>
-          case Some((len, result)) =>
-            val span = document.span(k, len) 
-            val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
-            val results = ParseParam.addToResults(item.results, result, item.param, layout, coreItem)
-            val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
-            if (nextCoreItem.evalConstraint(item.param, layout, results)) {
-              val scope = ea.scopeOfTerminal(terminal)
-              val tr = (t._1, t._2, result)
-              scopes.get(scope) match {
-                case None => scopes += (scope -> (len, Set(tr)))
-                case Some((l, ts)) => 
-                  if (len == l)
-                    scopes += (scope -> (l, ts + tr))
-                  else if ((scope != ea.fallbackScope) == (len > l))
-                    scopes += (scope -> (len, Set(tr)))
-              }
-            }            
-        }
+      // check which terminals actually can be scanned from position k on
+      var scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
+      for (t <- terminals) {
+        val lexer = ea.lexerOfTerminal(t._1)
+        val (len, r) = lexer.lex(document, k, t._2)
+        if (len > 0) scans += (t -> (len, r))
       }
-      item = item.nextItem
+
+      // check which scans are compatible with some layout 
+      val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
+      var item = bins(k).processedItems
+      while (item != null) {
+        val coreItem = ea.coreItemOf(item)
+        if (coreItem.nextSymbol < 0) {
+          val terminal = coreItem.nextSymbol
+          val terminalParam = coreItem.evalParam(item.param, item.layout, item.results, coreItem.dot)
+          val t = (terminal -> terminalParam)
+          scans.get(t) match {
+            case None =>
+            case Some((len, result)) =>
+              val span = document.span(k, len) 
+              val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
+              val results = ParseParam.addToResults(item.results, result, item.param, layout, coreItem)
+              val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
+              if (nextCoreItem.evalConstraint(item.param, layout, results)) {
+                val scope = ea.scopeOfTerminal(terminal)
+                val tr = (t._1, t._2, result)
+                scopes.get(scope) match {
+                  case None => scopes += (scope -> (len, Set(tr)))
+                  case Some((l, ts)) => 
+                    if (len == l)
+                      scopes += (scope -> (l, ts + tr))
+                    else if ((scope != ea.fallbackScope) == (len > l))
+                      scopes += (scope -> (len, Set(tr)))
+                }
+              }            
+          }
+        }
+        item = item.nextItem
+      }
+
+      scopes
     }
 
-    // the fallback scope will only be activated if there is no other possibility of scanning
-    if (scopes.size > 1) scopes -= ea.fallbackScope
+    var normalTerminals : List[(Int, ParseParam.V)] = List()
+    var fallbackTerminals : List[(Int, ParseParam.V)] = List()
+
+    for (t <- terminals) {
+      if (ea.scopeOfTerminal(t._1) == ea.fallbackScope)
+        fallbackTerminals = t :: fallbackTerminals
+      else
+        normalTerminals = t :: normalTerminals
+    }
+
+    val scopes = {
+      val scopes = computeScopes(normalTerminals)
+      if (scopes.isEmpty) computeScopes(fallbackTerminals) else scopes
+    }
 
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
