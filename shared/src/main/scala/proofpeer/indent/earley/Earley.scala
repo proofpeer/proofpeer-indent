@@ -199,8 +199,6 @@ final class Earley(ea : EarleyAutomaton) {
 
     // check which scans are compatible with some layout 
     val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
-    val (row, column, _) = document.character(k)
-    val (_, column0, _) = document.character(document.firstPositionInRow(row))
     var item = bins(k).processedItems
     while (item != null) {
       val coreItem = ea.coreItemOf(item)
@@ -211,7 +209,7 @@ final class Earley(ea : EarleyAutomaton) {
         scans.get(t) match {
           case None =>
           case Some((len, result)) =>
-            val span = Span(column0, row, column, k, len) 
+            val span = document.span(k, len) 
             val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, span)
             val results = ParseParam.addToResults(item.results, result, item.param, layout, coreItem)
             val nextCoreItem = ea.coreItems(coreItem.nextCoreItem)
@@ -238,7 +236,7 @@ final class Earley(ea : EarleyAutomaton) {
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminalsWithParams(_recognizedTerminals)
-      val span = Span(column0, row, column, k, len)
+      val span = document.span(k, len) 
       var item = bins(k).processedItems
       var destBin = bins(k + len)
       if (destBin == null) {

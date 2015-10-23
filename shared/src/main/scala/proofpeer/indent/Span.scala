@@ -5,8 +5,7 @@ package proofpeer.indent
   * area via its member variables. The members of Span correspond to the [[Constraint.LayoutQualifier]] cases, 
   * except for firstTokenIndex and lastTokenIndex. 
   *
-  * A span cannot represent an empty area or an area that does not begin and end with a
-  * (non-whitespace) token. */
+  * A span cannot represent a non-empty area that does not begin and end with a (non-whitespace) token. */
 final case class Span(
   var firstRow : Int,
   var lastRow : Int,
