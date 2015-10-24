@@ -202,8 +202,6 @@ final class Earley(ea : EarleyAutomaton) {
       MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] =
     {
 
-      if (Earley.debug) println("k = " + k + ", terminals = " + terminals)
-
       // check which terminals actually can be scanned from position k on
       val scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
       for (t <- terminals) {
@@ -211,8 +209,6 @@ final class Earley(ea : EarleyAutomaton) {
         val (len, r) = lexer.lex(document, k, t._2)
         if (len > 0 || (len == 0 && isFallback(t._1))) scans += (t -> (len, r))
       }
-
-      if (Earley.debug) println("k = " + k + ", scans = " + scans)
 
       // check which scans are compatible with some layout 
       val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
@@ -265,8 +261,6 @@ final class Earley(ea : EarleyAutomaton) {
       val scopes = computeScopes(normalTerminals)
       if (scopes.isEmpty) computeScopes(fallbackTerminals) else scopes
     }
-
-    if (Earley.debug) println("k = " + k + ", scopes = " + scopes)
 
     var repeat : Boolean = false
 
@@ -343,8 +337,9 @@ final class Earley(ea : EarleyAutomaton) {
 
   private class ParseTreeConstruction(document : Document, bins : Array[Bin]) {
 
-    import scala.collection.mutable.{Map => MutableMap}
-    private var cache : MutableMap[(Int, ParseParam.V, ParseParam.V, Int, Int), ParseTree] = MutableMap()
+    import scala.collection.mutable.{Map => MutableMap, Set => MutableSet}
+    private val cache : MutableMap[(Int, ParseParam.V, ParseParam.V, Int, Int), ParseTree] = MutableMap()
+    private val visiting : MutableSet[(Int, ParseParam.V, ParseParam.V, Int, Int)] = MutableSet()
 
     def getParseTree(nonterminal : Int, param : ParseParam.V, result : ParseParam.V,
       startPosition : Int, endPosition : Int) : ParseTree = 
@@ -352,8 +347,11 @@ final class Earley(ea : EarleyAutomaton) {
       val key = (nonterminal, param, result, startPosition, endPosition)
       cache.get(key) match {
         case None => 
+          if (visiting(key)) return null
+          visiting += key
           val r = constructParseTree(nonterminal, param, result, startPosition, endPosition)
           cache += (key -> r)
+          visiting -= key
           r
         case Some(r) =>
           r
@@ -399,6 +397,7 @@ final class Earley(ea : EarleyAutomaton) {
             val p = coreItem.evalParam(param, foundItem.layout, foundItem.results, i)
             val r = foundItem.results(i)
             subtrees(i) = getParseTree(symbol, p, r, span.firstIndexIncl, span.lastIndexExcl)
+            if (subtrees(i) == null) return null
           }
           hasAmbiguities = hasAmbiguities || subtrees(i).hasAmbiguities
         }
@@ -430,9 +429,10 @@ final class Earley(ea : EarleyAutomaton) {
         case List() => throw new RuntimeException("cannot construct parse tree")
         case List(foundItem) => mkTree(foundItem)
         case _ =>
-          val trees = foundItems.map(mkTree _).toVector
+          val trees = foundItems.map(mkTree _).toVector.filter(t => t != null)
           val node = trees.head
-          if (ambiguityResolution.isDefined) {
+          if (trees.size == 1) node
+          else if (ambiguityResolution.isDefined) {
             val v = ambiguityResolution.get.computeValue(node.nonterminal, node.span, trees)
             AmbiguousNode(node.nonterminal, node.span, trees, v)
           } else 
