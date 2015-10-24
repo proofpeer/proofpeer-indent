@@ -5,6 +5,8 @@ import proofpeer.indent.regex.DFA
 
 object Earley {
 
+  var debug : Boolean = false
+
   final val DEFAULT_PARAM : ParseParam.V = ParseParam.NIL
   final val DEFAULT_RESULT : ParseParam.V = ParseParam.NIL
 
@@ -193,13 +195,17 @@ final class Earley(ea : EarleyAutomaton) {
       MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] =
     {
 
+      if (Earley.debug) println("k = " + k + ", terminals = " + terminals)
+
       // check which terminals actually can be scanned from position k on
-      var scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
+      val scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
       for (t <- terminals) {
         val lexer = ea.lexerOfTerminal(t._1)
         val (len, r) = lexer.lex(document, k, t._2)
         if (len > 0) scans += (t -> (len, r))
       }
+
+      if (Earley.debug) println("k = " + k + ", scans = " + scans)
 
       // check which scans are compatible with some layout 
       val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
@@ -251,6 +257,8 @@ final class Earley(ea : EarleyAutomaton) {
       val scopes = computeScopes(normalTerminals)
       if (scopes.isEmpty) computeScopes(fallbackTerminals) else scopes
     }
+
+    if (Earley.debug) println("k = " + k + ", scopes = " + scopes)
 
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
