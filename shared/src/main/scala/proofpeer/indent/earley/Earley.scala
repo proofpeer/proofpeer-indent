@@ -239,7 +239,7 @@ final class Earley(ea : EarleyAutomaton) {
                     if (len == l)
                       scopes += (scope -> (l, ts + tr))
                     else if ((scope != ea.fallbackScope && len > l) ||
-                      (scope == ea.fallbackScope && len < l && len != 0))
+                      (scope == ea.fallbackScope && len < l))
                       scopes += (scope -> (len, Set(tr)))
                 }
               }            
@@ -323,11 +323,9 @@ final class Earley(ea : EarleyAutomaton) {
   def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[Bin]), Int]  = {
     var bins : Array[Bin] = new Array(document.size + 1)
     bins(0) = initialBin(nonterminals)
-    for (k <- 0 until document.size) {
+    for (k <- 0 to document.size) {
       while (scan(document, bins, k, predictAndComplete(bins, k))) {}
     }
-    predictAndComplete(bins, document.size)
-    if (bins(document.size) != null) bins(document.size).finishedAdding()
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
       var k = document.size
