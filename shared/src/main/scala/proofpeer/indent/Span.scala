@@ -77,9 +77,11 @@ final object Span {
     Span(firstRow, lastRow, maxRowGap, leftMostInFirst, leftMost, leftMostFirst, leftMostRest, rightMostLast, firstIndexIncl, lastIndexExcl)
   }
 
-  def nullSpan(firstIndexIncl : Int, lastIndexIncl : Int) : Span = {
-    Span(-1, -1, -1, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexIncl)
+  def nullSpan(firstIndexIncl : Int, lastIndexExcl : Int) : Span = {
+    Span(-1, -1, -1, -1, -1, -1, -1, -1, firstIndexIncl, lastIndexExcl)
   }
+
+  def nullSpan(position : Int) : Span = nullSpan(position, position)
 
   type Layout = Vector[Span] 
 

@@ -77,13 +77,15 @@ final class Bin(val pool : BitmapPool) {
     } else null
   }
 
+  // return true if the item is new
   def addItem(coreItemId : Int, param : ParseParam.V, origin : Int, 
-    layout : Span.Layout, results : ParseParam.Results) 
+    layout : Span.Layout, results : ParseParam.Results) : Boolean = 
   {
     var item = bitmap(coreItemId)
     if (item == null) {
       newItems = new Item(coreItemId, param, origin, layout, results, null, newItems)
       bitmap(coreItemId) = newItems
+      true
     } else if (item.param != param || item.origin != origin || 
       !Span.layoutsAreEqual(item.layout, layout) || 
       !ParseParam.resultsAreEqual(item.results, results))
@@ -96,8 +98,9 @@ final class Bin(val pool : BitmapPool) {
       if (sibling == null) {
         newItems = new Item(coreItemId, param, origin, layout, results, item, newItems)
         bitmap(coreItemId) = newItems
-      }
-    }
+        true
+      } else false
+    } else false
   }
 
   /** This is called when no new calls to [[addItem]] will be made. */
@@ -182,12 +185,16 @@ final class Earley(ea : EarleyAutomaton) {
       } 
       item = bin.nextItem()
     }    
-    bin.finishedAdding()
     terminals
   }
 
-  def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, ParseParam.V)]) {
-    if (terminals == null || terminals.isEmpty) return
+  private def isFallback(terminal : Int) : Boolean = {
+    ea.scopeOfTerminal(terminal) == ea.fallbackScope
+  }
+
+  // returns true if the prediction/completion/scan process must be repeated
+  def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, ParseParam.V)]) : Boolean = {
+    if (terminals == null || terminals.isEmpty) return false
 
     import scala.collection.mutable.{Map => MutableMap}
 
@@ -202,7 +209,7 @@ final class Earley(ea : EarleyAutomaton) {
       for (t <- terminals) {
         val lexer = ea.lexerOfTerminal(t._1)
         val (len, r) = lexer.lex(document, k, t._2)
-        if (len > 0) scans += (t -> (len, r))
+        if (len > 0 || (len == 0 && isFallback(t._1))) scans += (t -> (len, r))
       }
 
       if (Earley.debug) println("k = " + k + ", scans = " + scans)
@@ -231,7 +238,8 @@ final class Earley(ea : EarleyAutomaton) {
                   case Some((l, ts)) => 
                     if (len == l)
                       scopes += (scope -> (l, ts + tr))
-                    else if ((scope != ea.fallbackScope) == (len > l))
+                    else if ((scope != ea.fallbackScope && len > l) ||
+                      (scope == ea.fallbackScope && len < l && len != 0))
                       scopes += (scope -> (len, Set(tr)))
                 }
               }            
@@ -260,6 +268,8 @@ final class Earley(ea : EarleyAutomaton) {
 
     if (Earley.debug) println("k = " + k + ", scopes = " + scopes)
 
+    var repeat : Boolean = false
+
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminalsWithParams(_recognizedTerminals)
@@ -281,7 +291,8 @@ final class Earley(ea : EarleyAutomaton) {
             for (t <- candidateTerminals) {
               val results = ParseParam.addToResults(item.results, t._3, item.param, layout, coreItem)
               if (nextCoreItem.evalConstraint(item.param, layout, results)) {
-                destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results)
+                if (destBin.addItem(coreItem.nextCoreItem, item.param, item.origin, layout, results))
+                  if (len == 0) repeat = true
               }
             }
           }
@@ -289,6 +300,10 @@ final class Earley(ea : EarleyAutomaton) {
         item = item.nextItem
       }
     } 
+
+    if (!repeat) bins(k).finishedAdding()
+
+    repeat
   }
 
   def recognizedNonterminals(bin : Bin) : Set[Int] = {
@@ -309,9 +324,10 @@ final class Earley(ea : EarleyAutomaton) {
     var bins : Array[Bin] = new Array(document.size + 1)
     bins(0) = initialBin(nonterminals)
     for (k <- 0 until document.size) {
-      scan(document, bins, k, predictAndComplete(bins, k))
+      while (scan(document, bins, k, predictAndComplete(bins, k))) {}
     }
     predictAndComplete(bins, document.size)
+    if (bins(document.size) != null) bins(document.size).finishedAdding()
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
       var k = document.size

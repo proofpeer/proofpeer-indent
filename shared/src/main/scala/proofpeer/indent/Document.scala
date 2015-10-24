@@ -69,6 +69,7 @@ final class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Docum
   }
 
   def span(position : Int, len : Int) : Span = {
+    if (len == 0) return Span.nullSpan(position)
     var (row, column, _) = characters(position)
     val (lastRow, lastColumn, _) = characters(position + len - 1)
     val (_, col0, _) = characters(rows(row))
