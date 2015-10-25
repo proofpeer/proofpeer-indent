@@ -192,6 +192,10 @@ final class Earley(ea : EarleyAutomaton) {
     ea.scopeOfTerminal(terminal) == ea.fallbackScope
   }
 
+  private def writeln(s : Any) {
+    if (Earley.debug) println(s)
+  }
+
   // returns true if the prediction/completion/scan process must be repeated
   def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, ParseParam.V)]) : Boolean = {
     if (terminals == null || terminals.isEmpty) return false
@@ -235,7 +239,7 @@ final class Earley(ea : EarleyAutomaton) {
                     if (len == l)
                       scopes += (scope -> (l, ts + tr))
                     else if ((scope != ea.fallbackScope && len > l) ||
-                      (scope == ea.fallbackScope && len < l))
+                      (scope == ea.fallbackScope && (l == 0 || (len != 0 && len < l))))
                       scopes += (scope -> (len, Set(tr)))
                 }
               }            
@@ -261,6 +265,8 @@ final class Earley(ea : EarleyAutomaton) {
       val scopes = computeScopes(normalTerminals)
       if (scopes.isEmpty) computeScopes(fallbackTerminals) else scopes
     }
+
+    writeln("scanning, k = " + k + ", scopes = " + scopes)
 
     var repeat : Boolean = false
 
