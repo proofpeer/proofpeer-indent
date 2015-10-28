@@ -1,6 +1,7 @@
 package proofpeer.indent
 
 import scala.language.dynamics
+import regex.Range
 
 /** IndexedSymbols are symbols that carry an optional index tag.
   * The tags can be used to distinguish otherwise equal symbols on the right hand side
@@ -275,9 +276,20 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
       }
     }
 
-    /** Nonterminals not being a key in nullableNonterminals are definitely not nullable.
+    private def isFallbackTerminal(terminal : String) : Boolean = {
+      scanrules.get(terminal) match {
+        case None => false
+        case Some(rule) => rule.scope == FALLBACK_SCOPE
+      }
+    }
+
+    private def isNullableTerminal(terminal : String) : Boolean = {
+      isFallbackTerminal(terminal) && scanrules(terminal).lexer.zero
+    }
+
+    /** Nonterminals not being a key in potentiallyNullableNonterminals are definitely not nullable.
       * Otherwise, assume potentiallyNullableNonterminals(N) = b. Then N is definitely nullable if b = true,
-      * but if b = false, then it is not clear wether N is nullable or not. */
+      * but if b = false, then it is not clear whether N is nullable or not. */
     lazy val potentiallyNullableNonterminals : Map[String, Boolean] = {
       var nullable : Map[String, Boolean] = Map()
       var changed : Boolean = false
@@ -288,12 +300,12 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
           if (!(isNullable == Some(true))) {
             var ruleindex = 0
             for (rule <- rules) {
-              val maybeNullable = rule.rhs.forall(s => nullable.get(s.symbol) != None)
+              val maybeNullable = rule.rhs.forall(s => nullable.get(s.symbol) != None || isNullableTerminal(s.symbol))
               if (maybeNullable) {
                 evalConstraintForNullspans(rule, ruleindex) match {
                   case None => nullable = nullable + (nonterminal -> false)
                   case Some(true) => 
-                    val definitelyNullable = rule.rhs.forall(s => nullable.get(s.symbol) == Some(true))
+                    val definitelyNullable = rule.rhs.forall(s => nullable.get(s.symbol) == Some(true) || isNullableTerminal(s.symbol))
                     nullable = nullable + (nonterminal -> definitelyNullable)
                   case Some(false) => // do nothing, the nonterminal surely won't be null because of this rule
                 }
@@ -305,6 +317,43 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
         }
       } while (changed)
       nullable
+    }
+
+    lazy val FIRST : Seq[String] => (Range, Boolean) = {
+      var F : Map[String, Range] = nonterminals.map(n => (n -> Range.empty)).toMap
+      def isNullable(symbol : String) : Boolean = {
+        isNullableTerminal(symbol) || potentiallyNullableNonterminals.contains(symbol)
+      }
+      def rangeOf(symbol : String) : Range = {
+        F.get(symbol) match {
+          case Some(r) => r
+          case None => scanrules(symbol).lexer.first
+        }
+      }
+      def first(v : Seq[String]) : (Range, Boolean) = {
+        var r = Range.empty
+        for (s <- v) {
+          r = r + rangeOf(s)
+          if (!isNullable(s)) return (r, false)
+        }
+        (r, true)
+      }
+      var changed = true
+      while(changed) {
+        changed = false
+        for (n <- nonterminals) {
+          val oldr = rangeOf(n)
+          var r = oldr
+          for (rule <- parserules(n)) {
+            r = r + first(rule.rhs.map(i => i.symbol))._1
+          } 
+          if (r != oldr) {
+            changed = true  
+            F += (n -> r) 
+          }       
+        }
+      }
+      first _
     }
 
     private def computeRhsIndices(nonterminal : String, ruleindex : Int) : Map[IndexedSymbol, Int] = {

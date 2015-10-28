@@ -82,5 +82,22 @@ package object regex {
     }
   }
 
+  /** @return the range of characters which can start expr */
+  def firstRange(expr : RegularExpr) : Range = {
+    expr match {
+      case NOTHING => Range.empty
+      case EMPTY => Range.empty
+      case CHAR(r) => r
+      case ALT(left, right) => firstRange(left) + firstRange(right)
+      case SEQ(first, second) => 
+        if (matchesEmpty(first)) firstRange(first) + firstRange(second)
+        else firstRange(first)
+      case OPT(expr) => firstRange(expr)
+      case REPEAT(expr) => firstRange(expr)
+      case REPEAT1(expr) => firstRange(expr)
+    }
+  }
+
+
 }
 

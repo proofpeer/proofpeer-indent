@@ -9,7 +9,7 @@ lazy val foo = crossProject.in(file(".")).
     name := "ProofPeer Indent",
     organization := "net.proofpeer",
     version := "0.5-SNAPSHOT",
-    scalaVersion := "2.11.6",
+    scalaVersion := "2.11.7",
     scalacOptions += "-deprecation",
     libraryDependencies += "net.proofpeer" %%% "proofpeer-general" % "0.1-SNAPSHOT"    
   ).

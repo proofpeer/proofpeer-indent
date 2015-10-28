@@ -3,6 +3,9 @@ package proofpeer.indent.earley
 import proofpeer.indent._
 import proofpeer.indent.regex.DFA
 
+import scala.collection.mutable.{Map => MutableMap, Set => MutableSet}
+
+
 object Earley {
 
   var debug : Boolean = false
@@ -49,11 +52,19 @@ final class Bin(val pool : BitmapPool) {
 
   import Earley._
 
-  var processedItems : Item = null
+  var nonterminalItems : Item = null
 
-  var newItems : Item = null 
+  var terminalItems : Item = null
+
+  var completedItems : Item = null
+
+  private var newItems : Item = null 
 
   private var bitmap = pool.allocate()
+
+  private var hadItems_ : Boolean = false
+
+  def hadItems : Boolean = hadItems_
 
   def countItems(item : Item) : Int = {
     var num = 0
@@ -65,14 +76,31 @@ final class Bin(val pool : BitmapPool) {
     num
   }
 
-  def size : Int = countItems(newItems) + countItems(processedItems)
+  def size : Int = 
+    countItems(newItems) + 
+    countItems(nonterminalItems) + 
+    countItems(terminalItems) + 
+    countItems(completedItems)
 
-  def nextItem() : Item = {
+  def kindSizes(ea : EarleyAutomaton) : (Int, Int, Int) = {
+    (countItems(terminalItems), countItems(nonterminalItems), countItems(completedItems))
+  }
+
+  def nextItem(ea : EarleyAutomaton) : Item = {
     if (newItems != null) {
       val item = newItems
       newItems = item.nextItem
-      item.nextItem = processedItems
-      processedItems = item
+      val nextSymbol = ea.coreItemOf(item).nextSymbol
+      if (nextSymbol == 0) {
+        item.nextItem = completedItems
+        completedItems = item
+      } else if (nextSymbol > 0) {
+        item.nextItem = nonterminalItems
+        nonterminalItems = item
+      } else {
+        item.nextItem = terminalItems
+        terminalItems = item
+      }
       item
     } else null
   }
@@ -81,6 +109,7 @@ final class Bin(val pool : BitmapPool) {
   def addItem(coreItemId : Int, param : ParseParam.V, origin : Int, 
     layout : Span.Layout, results : ParseParam.Results) : Boolean = 
   {
+    hadItems_ = true
     var item = bitmap(coreItemId)
     if (item == null) {
       newItems = new Item(coreItemId, param, origin, layout, results, null, newItems)
@@ -107,6 +136,7 @@ final class Bin(val pool : BitmapPool) {
   def finishedAdding() {
     pool.release(bitmap)
     bitmap = null
+    terminalItems = null
   }
 
 }
@@ -117,11 +147,11 @@ final class Earley(ea : EarleyAutomaton) {
 
   val pool = new BitmapPool(ea.coreItems.size)
   
-  def initialBin(nonterminals : Set[Int]) : Bin = {
+  def initialBin(nonterminals : Set[Int], character : Int) : Bin = {
     val bin = new Bin(pool)
     for (coreItemId <- 0 until ea.coreItems.size) {
       val coreItem = ea.coreItems(coreItemId)
-      if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal)) {
+      if (coreItem.dot == 0 && nonterminals.contains(coreItem.nonterminal) && coreItem.first(character)) {
         val param = DEFAULT_PARAM
         val layout = Span.emptyLayout(0, coreItem.rhs.size)
         val results = ParseParam.emptyResults(param, layout, coreItem)
@@ -132,58 +162,65 @@ final class Earley(ea : EarleyAutomaton) {
     bin
   }
 
-  def predictAndComplete(bins : Array[Bin], k : Int) : Set[(Int, ParseParam.V)] = {
+  def predictAndComplete(bins : Array[Bin], k : Int, character : Int) : MutableSet[(Int, ParseParam.V)] = {
     val bin = bins(k)
     if (bin == null) return null
-    var item = bin.nextItem()
-    var terminals : Set[(Int, ParseParam.V)] = Set()
+    var item = bin.nextItem(ea)
+    val terminals : MutableSet[(Int, ParseParam.V)] = MutableSet()
     while (item != null) {
       val coreItem = ea.coreItemOf(item)
       val param = item.param
       val nextSymbol = coreItem.nextSymbol
-      if (nextSymbol < 0) /* terminal */ {
+      val first = coreItem.first(character)
+      if (nextSymbol < 0 && first) /* terminal */ {
         val nextSymbolParam = coreItem.evalParam(param, item.layout, item.results, coreItem.dot)
         terminals += (nextSymbol -> nextSymbolParam)
-      } else if (nextSymbol > 0) /* nonterminal */ {
+      } else if (nextSymbol > 0 && first) /* nonterminal */ {
         val nextSymbolParam = coreItem.evalParam(param, item.layout, item.results, coreItem.dot)
         for (predictedItem <- coreItem.predictedCoreItems) {
           val predictedCoreItem = ea.coreItems(predictedItem)
-          val layout = Span.emptyLayout(k, predictedCoreItem.rhs.size)
-          val results = ParseParam.emptyResults(nextSymbolParam, layout, predictedCoreItem)
-          if (predictedCoreItem.evalConstraint(nextSymbolParam, layout, results))
-            bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
+          if (predictedCoreItem.first(character)) {
+            val layout = Span.emptyLayout(k, predictedCoreItem.rhs.size)
+            val results = ParseParam.emptyResults(nextSymbolParam, layout, predictedCoreItem)
+            if (predictedCoreItem.evalConstraint(nextSymbolParam, layout, results))
+              bin.addItem(predictedItem, nextSymbolParam, k, layout, results)
+          }
         }
         if (coreItem.nextSymbolIsNullable) {
-          val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, 
-            Span.nullSpan(k, k))
-          val results = ParseParam.addToResults(item.results, ea.nullresult(nextSymbol), param, layout, coreItem)
           val nextCoreItemId = coreItem.nextCoreItem
           val nextCoreItem = ea.coreItems(nextCoreItemId)
-          if (nextCoreItem.evalConstraint(param, layout, results))
-            bin.addItem(nextCoreItemId, param, item.origin, layout, results)
+          if (nextCoreItem.first(character)) {
+            val layout = Span.addToLayout(item.origin, coreItem.rhs.size, item.layout, 
+              Span.nullSpan(k, k))
+            val results = ParseParam.addToResults(item.results, ea.nullresult(nextSymbol), param, layout, coreItem)
+            if (nextCoreItem.evalConstraint(param, layout, results))
+              bin.addItem(nextCoreItemId, param, item.origin, layout, results)
+          }
         }
-      } else if (coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
+      } else if (nextSymbol == 0 && coreItem.dot > 0) /* no symbol, do completion for non-epsilon rules */ {
         val nonterminal = coreItem.nonterminal
         val span = Span.getSpanOfLayout(item.layout)
         val result = ParseParam.getResult(item.results)
-        var originItem = bins(item.origin).processedItems
+        var originItem = bins(item.origin).nonterminalItems
         while (originItem != null) {
           val originCoreItem = ea.coreItemOf(originItem)
           if (originCoreItem.nextSymbol == nonterminal) {
             val p = originCoreItem.evalParam(originItem.param, originItem.layout, originItem.results, originCoreItem.dot)
             if (p == param) {
-              val layout = Span.addToLayout(originItem.origin, originCoreItem.rhs.size, originItem.layout, span)
-              val results = ParseParam.addToResults(originItem.results, result, originItem.param, layout, originCoreItem)
               val nextCoreItemId = originCoreItem.nextCoreItem
               val nextCoreItem = ea.coreItems(nextCoreItemId)
-              if (nextCoreItem.evalConstraint(originItem.param, layout, results)) 
-                bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout, results)
+              if (nextCoreItem.first(character)) {
+                val layout = Span.addToLayout(originItem.origin, originCoreItem.rhs.size, originItem.layout, span)
+                val results = ParseParam.addToResults(originItem.results, result, originItem.param, layout, originCoreItem)
+                if (nextCoreItem.evalConstraint(originItem.param, layout, results)) 
+                  bin.addItem(nextCoreItemId, originItem.param, originItem.origin, layout, results)
+              }
             }
           }
           originItem = originItem.nextItem
         }
       } 
-      item = bin.nextItem()
+      item = bin.nextItem(ea)
     }    
     terminals
   }
@@ -197,26 +234,28 @@ final class Earley(ea : EarleyAutomaton) {
   }
 
   // returns true if the prediction/completion/scan process must be repeated
-  def scan(document : Document, bins : Array[Bin], k : Int, terminals : Set[(Int, ParseParam.V)]) : Boolean = {
+  def scan(document : Document, bins : Array[Bin], k : Int, terminals : MutableSet[(Int, ParseParam.V)]) : Boolean = {
     if (terminals == null || terminals.isEmpty) return false
 
-    import scala.collection.mutable.{Map => MutableMap}
-
-    def computeScopes(terminals : List[(Int, ParseParam.V)]) : 
+    def computeScopes(terminals : MutableSet[(Int, ParseParam.V)], fallback : Boolean) : 
       MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] =
     {
 
       // check which terminals actually can be scanned from position k on
       val scans : MutableMap[(Int, ParseParam.V), (Int, ParseParam.V)] = MutableMap()
       for (t <- terminals) {
-        val lexer = ea.lexerOfTerminal(t._1)
-        val (len, r) = lexer.lex(document, k, t._2)
-        if (len > 0 || (len == 0 && isFallback(t._1))) scans += (t -> (len, r))
+        if ((ea.scopeOfTerminal(t._1) == ea.fallbackScope) == fallback) {
+          val lexer = ea.lexerOfTerminal(t._1)
+          val (len, r) = lexer.lex(document, k, t._2)
+          if (len > 0 || (len == 0 && isFallback(t._1))) {
+            scans += (t -> (len, r))
+          }
+        }
       }
 
       // check which scans are compatible with some layout 
       val scopes : MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] = MutableMap()
-      var item = bins(k).processedItems
+      var item = bins(k).terminalItems
       while (item != null) {
         val coreItem = ea.coreItemOf(item)
         if (coreItem.nextSymbol < 0) {
@@ -251,30 +290,21 @@ final class Earley(ea : EarleyAutomaton) {
       scopes
     }
 
-    var normalTerminals : List[(Int, ParseParam.V)] = List()
-    var fallbackTerminals : List[(Int, ParseParam.V)] = List()
-
-    for (t <- terminals) {
-      if (ea.scopeOfTerminal(t._1) == ea.fallbackScope)
-        fallbackTerminals = t :: fallbackTerminals
-      else
-        normalTerminals = t :: normalTerminals
-    }
-
     val scopes = {
-      val scopes = computeScopes(normalTerminals)
-      if (scopes.isEmpty) computeScopes(fallbackTerminals) else scopes
+      val scopes = computeScopes(terminals, false)
+      if (scopes.isEmpty) computeScopes(terminals, true) else scopes
     }
-
-    writeln("scanning, k = " + k + ", scopes = " + scopes)
 
     var repeat : Boolean = false
+
+    var countTerminals = 0
 
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminalsWithParams(_recognizedTerminals)
+      countTerminals += recognizedTerminals.size
       val span = document.span(k, len) 
-      var item = bins(k).processedItems
+      var item = bins(k).terminalItems
       var destBin = bins(k + len)
       if (destBin == null) {
         destBin = new Bin(pool)
@@ -309,7 +339,7 @@ final class Earley(ea : EarleyAutomaton) {
   def recognizedNonterminals(bin : Bin) : Set[Int] = {
     if (bin == null) return Set()
     var recognized : Set[Int] = Set()
-    var item = bin.processedItems
+    var item = bin.completedItems
     while (item != null) {
       if (item.origin == 0 && item.param == DEFAULT_PARAM) {
         val coreItem = ea.coreItemOf(item)
@@ -322,16 +352,18 @@ final class Earley(ea : EarleyAutomaton) {
 
   def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[Bin]), Int]  = {
     var bins : Array[Bin] = new Array(document.size + 1)
-    bins(0) = initialBin(nonterminals)
+    val character = if (document.size == 0) -1 else document.character(0)._3
+    bins(0) = initialBin(nonterminals, character)
     for (k <- 0 to document.size) {
-      while (scan(document, bins, k, predictAndComplete(bins, k))) {}
+      val character = if (k == document.size) -1 else document.character(k)._3
+      while (scan(document, bins, k, predictAndComplete(bins, k, character))) {}
     }
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
       var k = document.size
       var foundNonemptyBin = false
       while (k >= 0 && !foundNonemptyBin) {
-        if (bins(k) != null && bins(k).processedItems != null) 
+        if (bins(k) != null && bins(k).hadItems) 
           foundNonemptyBin = true
         else k -= 1
       }
@@ -375,7 +407,7 @@ final class Earley(ea : EarleyAutomaton) {
       val ambiguityResolution = grammar.ambiguityResolution
       val nonterminalSymbol = ea.nonterminalOfId(nonterminal)
       val bin = bins(endPosition)
-      var item = bin.processedItems
+      var item = bin.completedItems
       var foundItems : List[Item] = List()
       while (item != null) {
         val coreItem = ea.coreItemOf(item)

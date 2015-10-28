@@ -14,6 +14,7 @@ final case class CoreItem(val nonterminal : Int, val ruleindex : Int, val dot : 
     { case (param, layout, results, i) => Earley.DEFAULT_PARAM }
   var evalResult : (ParseParam.V, Span.Layout, ParseParam.Results) => ParseParam.V = 
     { case (param, layout, results) => Earley.DEFAULT_PARAM }
+  var first : Int => Boolean = x => true // false if the character cannot appear directly after the dot (-1 == end of input) 
 } 
 
 final class EarleyAutomaton(val grammar : Grammar) {
@@ -59,6 +60,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
       val nonterminal = idOfNonterminal(symbol)
       for (rule <- rules) {
         val rhs = rule.rhs.map(x => idOfSymbol(x.symbol))
+        val rhsSymbols = rule.rhs.map(x => x.symbol)
         val rhsIndices = grammar.rhsIndices(symbol, ruleindex)
         val evalParam = ParseParam.evaluateParams(rule.params, s => rhsIndices(s))
         def g(s : IndexedSymbol) : Int = {
@@ -71,6 +73,8 @@ final class EarleyAutomaton(val grammar : Grammar) {
         for (dot <- 0 to rule.rhs.size) {
           val id = states.size
           val coreItem = new CoreItem(nonterminal, ruleindex, dot)
+          val (range, nullable) = grammar.FIRST(rhsSymbols.drop(dot))
+          if (!nullable) coreItem.first = range.contains _ 
           coreItem.rhs = rhs
           coreItem.nextSymbol = 
             if (dot == rule.rhs.size) 0 else idOfSymbol(rule.rhs(dot).symbol)
@@ -102,6 +106,7 @@ final class EarleyAutomaton(val grammar : Grammar) {
           }
           coreItem.evalParam = evalParam
           coreItem.evalResult = evalResult
+
           if (coreItem.rhs.size == 0) {
             val nonterminal = nonterminalOfId(coreItem.nonterminal)
             grammar.potentiallyNullableNonterminals.get(nonterminal) match {

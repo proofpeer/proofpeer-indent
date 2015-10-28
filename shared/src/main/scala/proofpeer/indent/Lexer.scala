@@ -4,8 +4,14 @@ import proofpeer.indent.regex._
 
 trait Lexer {
   /** Returns the maximum number of characters that the lexer accepts. A return value
-      of 0 or less means that lexing failed. */
+      of -1 or less means that lexing failed. */
   def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V)
+
+  /** Returns true if this lexer can ever return (0, p), i.e. can return zero length lexems. */
+  def zero : Boolean
+
+  /** The range of character codes that any lexem of this lexer can start with. */
+  def first : Range
 }
 
 object Lexer {
@@ -29,7 +35,7 @@ object Lexer {
     }
   }
 
-  private class LexerImpl(dfa : DFA, layout : Layout) extends Lexer
+  private class LexerImpl(dfa : DFA, layout : Layout, val zero : Boolean, val first : Range) extends Lexer
   {
     def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
       val (start, continue) = layout(param)
@@ -42,7 +48,7 @@ object Lexer {
   def make(regex : RegularExpr, layout : Layout) : Lexer =
   {
     val dfa = makeDFA(regex)
-    new LexerImpl(dfa, layout)
+    new LexerImpl(dfa, layout, matchesEmpty(regex), firstRange(regex))
   }
 
   def untilWhitespace(regex : RegularExpr) : Lexer = 
@@ -101,6 +107,10 @@ final class DemandLeftBorder(lexer : Lexer, minNewLines : Int, borderRange : Ran
     if (allow) lexer.lex(d, startPosition, param) else (-1, ParseParam.UNDEFINED)
   }
 
+  val zero = lexer.zero
+
+  val first = lexer.first
+
 }
 
 final class DemandRightBorder(lexer : Lexer, minNewLines : Int, borderRange : Range) extends Lexer {
@@ -118,6 +128,10 @@ final class DemandRightBorder(lexer : Lexer, minNewLines : Int, borderRange : Ra
       (-1, ParseParam.UNDEFINED)
     } else R
   }
+
+  val zero = lexer.zero
+
+  val first = lexer.first
 
 }
 
