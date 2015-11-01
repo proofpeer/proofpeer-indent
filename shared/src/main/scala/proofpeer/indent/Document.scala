@@ -9,13 +9,61 @@ trait Document {
 
   def firstPositionInRow(row : Int) : Int
   
-  def getText(position : Int, len : Int) : String
-
-  def span(position : Int, len : Int) : Span
 
   def getText(span : Span) : String = 
     if (span == null) ""
     else getText(span.firstIndexIncl, span.lastIndexExcl - span.firstIndexIncl)
+
+  def getText(position : Int, len : Int) : String = {
+    if (len == 0) return ""
+    var (row, column, code) = character (position)
+    var codes : List[Int] = List(code)
+    var i = 1
+    while (i < len) {
+      var (row2, column2, code) = character (position + i)
+      while (row < row2) {
+        column = -1
+        row = row + 1
+        codes = '\n' :: codes
+      }
+      column = column + 1
+      while (column < column2) {
+        column = column + 1
+        codes = ' '  :: codes
+      } 
+      codes = code :: codes
+      i = i + 1
+    }
+    var arr = codes.reverse.toArray
+    new String(arr, 0, arr.length)
+  }
+
+  def span(position : Int, len : Int) : Span = {
+    if (len == 0) return Span.nullSpan(position)
+    var (row, column, _) = character(position)
+    val (lastRow, lastColumn, _) = character(position + len - 1)
+    val (_, col0, _) = character(firstPositionInRow(row))
+    if (row == lastRow) {
+      Span(col0, row, column, position, len)
+    } else {
+      var pos = firstPositionInRow(row + 1)
+      var (currentRow, currentColumn, _) = character(pos)
+      var span = Span(col0, row, column, position, pos - position)
+      var l = len - (pos - position)
+      while (currentRow < lastRow) {
+        val nextpos = firstPositionInRow(currentRow + 1)
+        span.addBehind(Span(currentColumn, currentRow, currentColumn, pos, nextpos - pos))        
+        val (nextRow, nextColumn, _) = character(nextpos)
+        l = l - (nextpos - pos)
+        currentRow = nextRow
+        currentColumn = nextColumn
+        pos = nextpos
+      }
+      span.addBehind(Span(currentColumn, currentRow, currentColumn, pos, l))
+      span
+    }
+  }
+
 
 }
 
@@ -44,55 +92,6 @@ final class UnicodeDocument(characters : Vector[(Int, Int, Int)])  extends Docum
 
   def firstPositionInRow(row : Int) : Int = rows(row)
     
-  def getText(position : Int, len : Int) : String = {
-    if (len == 0) return ""
-    var (row, column, code) = characters (position)
-    var codes : List[Int] = List(code)
-    var i = 1
-    while (i < len) {
-      var (row2, column2, code) = characters (position + i)
-      while (row < row2) {
-        column = -1
-        row = row + 1
-        codes = '\n' :: codes
-      }
-      column = column + 1
-      while (column < column2) {
-        column = column + 1
-        codes = ' '  :: codes
-      } 
-      codes = code :: codes
-      i = i + 1
-    }
-    var arr = codes.reverse.toArray
-    new String(arr, 0, arr.length)
-  }
-
-  def span(position : Int, len : Int) : Span = {
-    if (len == 0) return Span.nullSpan(position)
-    var (row, column, _) = characters(position)
-    val (lastRow, lastColumn, _) = characters(position + len - 1)
-    val (_, col0, _) = characters(rows(row))
-    if (row == lastRow) {
-      Span(col0, row, column, position, len)
-    } else {
-      var pos = rows(row + 1)
-      var (currentRow, currentColumn, _) = characters(pos)
-      var span = Span(col0, row, column, position, pos - position)
-      var l = len - (pos - position)
-      while (currentRow < lastRow) {
-        val nextpos = rows(currentRow + 1)
-        span.addBehind(Span(currentColumn, currentRow, currentColumn, pos, nextpos - pos))        
-        val (nextRow, nextColumn, _) = characters(nextpos)
-        l = l - (nextpos - pos)
-        currentRow = nextRow
-        currentColumn = nextColumn
-        pos = nextpos
-      }
-      span.addBehind(Span(currentColumn, currentRow, currentColumn, pos, l))
-      span
-    }
-  }
   
 }
 

@@ -139,6 +139,47 @@ final class Bin(val pool : BitmapPool) {
     terminalItems = null
   }
 
+  def release() {
+    if (bitmap != null) finishedAdding()
+  }
+
+  def backup() : Bin.Backup = {
+    var items = newItems
+    var backup : Bin.Backup = Vector()
+    while (items != null) {
+      val backupItem : Bin.BackupItem = 
+        (items.coreItemId, items.param, items.origin, items.layout, items.results)
+      backup = backup :+ backupItem
+      items = items.nextItem
+    }
+    backup
+  }
+
+}
+
+object Bin {
+
+  type BackupItem = (Int, ParseParam.V, Int, Span.Layout, ParseParam.Results)
+  type Backup = Vector[BackupItem]
+
+  def restore(pool : BitmapPool, backup : Backup) : Bin = {
+    val bin = new Bin(pool)
+    for (x <- backup) bin.addItem(x._1, x._2, x._3, x._4, x._5)
+    bin
+  }
+
+}
+
+trait Bins {
+  def addBin(position : Int, bin : Bin)
+  def apply(position : Int) : Bin
+}
+
+final class ArrayBins(size : Int) extends Bins {
+  private val bins : Array[Bin] = new Array[Bin](size)
+  def apply(position : Int) : Bin = bins(position)
+  def addBin(position : Int, bin : Bin) { bins(position) = bin }
+  def toArray : Array[Bin] = bins
 }
 
 final class Earley(ea : EarleyAutomaton) {
@@ -162,7 +203,7 @@ final class Earley(ea : EarleyAutomaton) {
     bin
   }
 
-  def predictAndComplete(bins : Array[Bin], k : Int, character : Int) : MutableSet[(Int, ParseParam.V)] = {
+  def predictAndComplete(bins : Bins, k : Int, character : Int) : MutableSet[(Int, ParseParam.V)] = {
     val bin = bins(k)
     if (bin == null) return null
     var item = bin.nextItem(ea)
@@ -233,9 +274,11 @@ final class Earley(ea : EarleyAutomaton) {
     if (Earley.debug) println(s)
   }
 
-  // returns true if the prediction/completion/scan process must be repeated
-  def scan(document : Document, bins : Array[Bin], k : Int, terminals : MutableSet[(Int, ParseParam.V)]) : Boolean = {
-    if (terminals == null || terminals.isEmpty) return false
+  // returns (repeat, theTerminals); repeat is true if the prediction/completion/scan process must be repeated
+  def scan(document : Document, bins : Bins, k : Int, terminals : MutableSet[(Int, ParseParam.V)]) : 
+    (Boolean, MutableSet[(Int, Int)]) = 
+  {
+    if (terminals == null || terminals.isEmpty) return (false, MutableSet())
 
     def computeScopes(terminals : MutableSet[(Int, ParseParam.V)], fallback : Boolean) : 
       MutableMap[Int, (Int, Set[(Int, ParseParam.V, ParseParam.V)])] =
@@ -297,18 +340,18 @@ final class Earley(ea : EarleyAutomaton) {
 
     var repeat : Boolean = false
 
-    var countTerminals = 0
+    val theTerminals : MutableSet[(Int, Int)] = MutableSet()
 
     // create new items
     for ((scope, (len, _recognizedTerminals)) <- scopes) {
       val recognizedTerminals = ea.prioritizeTerminalsWithParams(_recognizedTerminals)
-      countTerminals += recognizedTerminals.size
+      for (t <- recognizedTerminals) theTerminals += (len -> t._1)
       val span = document.span(k, len) 
       var item = bins(k).terminalItems
       var destBin = bins(k + len)
       if (destBin == null) {
         destBin = new Bin(pool)
-        bins(k + len) = destBin
+        bins.addBin(k + len, destBin)
       }
       while (item != null) {
         val coreItem = ea.coreItemOf(item)
@@ -333,7 +376,7 @@ final class Earley(ea : EarleyAutomaton) {
 
     if (!repeat) bins(k).finishedAdding()
 
-    repeat
+    (repeat, theTerminals)
   }
 
   def recognizedNonterminals(bin : Bin) : Set[Int] = {
@@ -351,12 +394,12 @@ final class Earley(ea : EarleyAutomaton) {
   }
 
   def recognize(document : Document, nonterminals : Set[Int]) : Either[(Set[Int], Array[Bin]), Int]  = {
-    var bins : Array[Bin] = new Array(document.size + 1)
+    val bins = new ArrayBins(document.size + 1)
     val character = if (document.size == 0) -1 else document.character(0)._3
-    bins(0) = initialBin(nonterminals, character)
+    bins.addBin(0, initialBin(nonterminals, character))
     for (k <- 0 to document.size) {
       val character = if (k == document.size) -1 else document.character(k)._3
-      while (scan(document, bins, k, predictAndComplete(bins, k, character))) {}
+      while (scan(document, bins, k, predictAndComplete(bins, k, character))._1) {}
     }
     val recognized = recognizedNonterminals(bins(document.size)).intersect(nonterminals)
     if (recognized.isEmpty) {
@@ -369,7 +412,7 @@ final class Earley(ea : EarleyAutomaton) {
       }
       Right(k)
     } else {
-      Left((recognized, bins))
+      Left((recognized, bins.toArray))
     } 
   }
 
@@ -490,5 +533,85 @@ final class Earley(ea : EarleyAutomaton) {
         Right(k) 
     }
   } 
+
+}
+
+final class LexerBins extends Bins {
+
+  private var bins : Map[Int, Bin] = Map()
+
+  def addBin(position : Int, bin : Bin) {
+    bins = bins + (position -> bin)
+  }
+  
+  def apply(position : Int) : Bin = {
+    bins.get(position) match {
+      case None => null
+      case Some(bin) => bin
+    }
+  }
+
+  def deleteBin(position : Int) {
+    val bin = apply(position)
+    if (bin != null) bin.release()
+    bins = bins - position
+  }
+
+  def copy() : LexerBins = {
+    val lexerBins = new LexerBins()
+    lexerBins.bins = bins
+    lexerBins
+  }
+
+}
+
+final class EarleyLexer(earley : Earley, startNonterminal : Int)
+{
+  /** There are only bins from 0 to (currentBinIndex - 1), which have all "finishedAdding" (in case they are not null)
+    * There are no bins with index >= currentBinIndex.
+    * If currentBinIndex is not 0, then currentBinBackup contains a backup which must be restored at 
+    * bins(currentBinIndex) to continue lexing / parsing.
+    */
+  private var bins : LexerBins = new LexerBins()
+  private var currentBinIndex : Int = 0 
+  private var currentBinBackup : Bin.Backup = null
+
+  def position : Int = currentBinIndex
+
+  // if lexing fails, None, else returns Some(startposition, len, terminal)
+  def lex(document : Document) : Option[(Int, Int, Int)] = {
+    val character = if (currentBinIndex < document.size) document.character(currentBinIndex)._3 else -1
+    if (currentBinBackup == null) {
+      bins.addBin(0, earley.initialBin(Set(startNonterminal), character))
+    } else {
+      bins.addBin(currentBinIndex, Bin.restore(earley.pool, currentBinBackup))
+    }
+    while(true) {
+      val terminalCandidates = earley.predictAndComplete(bins, currentBinIndex, character)
+      val (repeat, theTerminals) = earley.scan(document, bins, currentBinIndex, terminalCandidates)
+      if (!repeat) {
+        if (theTerminals.size != 1 || theTerminals.head._1 == 0) {
+          for ((len, _) <- theTerminals) bins.deleteBin(currentBinIndex + len)
+          bins.deleteBin(currentBinIndex)
+          return None
+        }
+        val (len, terminal) = theTerminals.head
+        val result = Some((currentBinIndex, len, terminal))
+        currentBinIndex = currentBinIndex + len
+        currentBinBackup = bins(currentBinIndex).backup()
+        bins.deleteBin(currentBinIndex)
+        return result
+      }
+    } 
+    throw new RuntimeException("lex: internal error")
+  }
+
+  def copy() : EarleyLexer = {
+    val c = new EarleyLexer(earley, startNonterminal)
+    c.bins = bins.copy()
+    c.currentBinIndex = currentBinIndex
+    c.currentBinBackup = currentBinBackup
+    c
+  }
 
 }
