@@ -507,7 +507,8 @@ final class Earley(ea : EarleyAutomaton) {
         NonterminalNode(nonterminalSymbol, ruleindex, span_, subtrees.toVector, value)
       }
       foundItems match {
-        case List() => throw new RuntimeException("cannot construct parse tree")
+        case List() => throw new RuntimeException("cannot construct parse tree for " + 
+          ea.nonterminalOfId(nonterminal) + " from " + startPosition + " to " + endPosition)
         case List(foundItem) => mkTree(foundItem)
         case _ =>
           val trees = foundItems.map(mkTree _).toVector.filter(t => t != null)

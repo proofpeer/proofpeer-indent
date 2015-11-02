@@ -300,12 +300,12 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
           if (!(isNullable == Some(true))) {
             var ruleindex = 0
             for (rule <- rules) {
-              val maybeNullable = rule.rhs.forall(s => nullable.get(s.symbol) != None || isNullableTerminal(s.symbol))
+              val maybeNullable = rule.rhs.forall(s => nullable.get(s.symbol) != None)
               if (maybeNullable) {
                 evalConstraintForNullspans(rule, ruleindex) match {
                   case None => nullable = nullable + (nonterminal -> false)
                   case Some(true) => 
-                    val definitelyNullable = rule.rhs.forall(s => nullable.get(s.symbol) == Some(true) || isNullableTerminal(s.symbol))
+                    val definitelyNullable = rule.rhs.forall(s => nullable.get(s.symbol) == Some(true))
                     nullable = nullable + (nonterminal -> definitelyNullable)
                   case Some(false) => // do nothing, the nonterminal surely won't be null because of this rule
                 }
@@ -322,12 +322,16 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
     lazy val FIRST : Seq[String] => (Range, Boolean) = {
       var F : Map[String, Range] = nonterminals.map(n => (n -> Range.empty)).toMap
       def isNullable(symbol : String) : Boolean = {
-        isNullableTerminal(symbol) || potentiallyNullableNonterminals.contains(symbol)
+        potentiallyNullableNonterminals.contains(symbol)
       }
       def rangeOf(symbol : String) : Range = {
         F.get(symbol) match {
           case Some(r) => r
-          case None => scanrules(symbol).lexer.first
+          case None => 
+            if (isNullableTerminal(symbol))
+              Range.universal
+            else
+              scanrules(symbol).lexer.first
         }
       }
       def first(v : Seq[String]) : (Range, Boolean) = {
