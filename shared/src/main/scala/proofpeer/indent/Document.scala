@@ -8,8 +8,22 @@ trait Document {
   def character(position : Int) : (Int, Int, Int)
 
   def firstPositionInRow(row : Int) : Int
-  
 
+  def numberOfRows : Int = {
+    if (size == 0) 0 
+    else character(size - 1)._1 + 1
+  }
+
+  def lengthOfRow(row : Int) : Int = {
+    val nr = numberOfRows
+    if (row >= nr) return 0
+    if (row + 1 == nr) character(size - 1)._2 + 1
+    else {
+      val (r1, c1, _) = character(firstPositionInRow(row))
+      if (r1 != row) 0 else character(firstPositionInRow(row + 1) - 1)._2 + 1
+    }
+  }
+  
   def getText(span : Span) : String = 
     if (span == null) ""
     else getText(span.firstIndexIncl, span.lastIndexExcl - span.firstIndexIncl)
