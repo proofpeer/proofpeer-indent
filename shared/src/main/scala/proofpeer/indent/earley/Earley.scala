@@ -214,7 +214,6 @@ final class Earley(ea : EarleyAutomaton) {
   }
 
   def predictAndComplete(bins : Bins, k : Int, character : Int, terminals : MutableSet[(Int, ParseParam.V)]) : Boolean = {
-    writeln("predictAndComplete " + k)
     val bin = bins(k)
     if (bin == null) return false
     var item = bin.nextItem(ea)
@@ -288,7 +287,6 @@ final class Earley(ea : EarleyAutomaton) {
   // returns repeat; repeat is true if the prediction/completion/scan process must be repeated
   def scan(document : Document, bins : Bins, k : Int, terminals : MutableSet[(Int, ParseParam.V)]) : Boolean =
   {
-    writeln("scan at " + k)
     if (terminals == null || terminals.isEmpty) return false
 
     def computeScopes(terminals : MutableSet[(Int, ParseParam.V)], fallback : Boolean) : 
