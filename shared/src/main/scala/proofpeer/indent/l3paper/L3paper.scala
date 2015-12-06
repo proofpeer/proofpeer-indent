@@ -93,7 +93,7 @@ object Examples {
     r("Deref", "asterisk Expr")
 
 
-  def main(args : Array[String]) {
+  def _main(args : Array[String]) {
     outputDir = new File("/Users/stevenobua/parsing/dots")
     run("Example_0", grammar_0, "S", "a-b+c")
     run("Example_1", grammar_1, "S", "a-b+c")
