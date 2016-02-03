@@ -91,6 +91,10 @@ object GrammarError {
     override def toString : String = "Cannot determine whether the nonterminal '" + nonterminal + "' is nullable or not."
   }
 
+  case class ZeroNeighbours(leftSymbol : IndexedSymbol, rightSymbol : IndexedSymbol, rule : Int) extends GrammarError {
+    override def toString : String = "Two possible zero length terminal neighbours detected, left symbol = " + leftSymbol + ", right symbol = " + rightSymbol
+  }
+
 }
 
 class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[AmbiguityResolution])
@@ -219,6 +223,27 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
       errors
     }
 
+    def checkCompatibility() : Vector[GrammarError] = {
+      var errors : Vector[GrammarError] = Vector()
+      var ruleindex = 0
+      for (rule <- rules) {
+        rule match {
+          case rule : ParseRule =>
+            val rhs = rule.rhs
+            val len = rhs.size
+            var i = 1
+            while (i  < len) {
+              if (SymbolsWithZeroFinish.contains(rhs(i-1).symbol) && SymbolsWithZeroStart.contains(rhs(i).symbol))
+                errors = errors :+ GrammarError.ZeroNeighbours(rhs(i-1), rhs(i), ruleindex)
+              i += 1
+            }
+          case rule : ScanRule => 
+        }
+        ruleindex += 1
+      }
+      errors
+    }
+
     private def computeScanRules : Map[String, ScanRule] = {
       var srules : Map[String, ScanRule] = Map()
       for (r <- rules) {
@@ -256,6 +281,8 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
     lazy val nonterminals : Set[String] = parserules.keys.toSet
 
     lazy val errors = check()
+
+    lazy val compatibilityErrors = checkCompatibility()
 
     private def evalConstraintForNullspans(rule : ParseRule, ruleindex : Int) : Option[Boolean] = 
     {
@@ -319,11 +346,12 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
       nullable
     }
 
+    def isNullableNonterminal(symbol : String) : Boolean = {
+      potentiallyNullableNonterminals.contains(symbol)
+    }
+
     lazy val FIRST : Seq[String] => (Range, Boolean) = {
       var F : Map[String, Range] = nonterminals.map(n => (n -> Range.empty)).toMap
-      def isNullable(symbol : String) : Boolean = {
-        potentiallyNullableNonterminals.contains(symbol)
-      }
       def rangeOf(symbol : String) : Range = {
         F.get(symbol) match {
           case Some(r) => r
@@ -338,7 +366,7 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
         var r = Range.empty
         for (s <- v) {
           r = r + rangeOf(s)
-          if (!isNullable(s)) return (r, false)
+          if (!isNullableNonterminal(s)) return (r, false)
         }
         (r, true)
       }
@@ -359,6 +387,86 @@ class Grammar(val rules : Vector[Rule], val ambiguityResolution : Option[Ambigui
       }
       first _
     }
+
+    lazy val START : Seq[String] => Set[String] = {
+      var S : Map[String, Set[String]] = Map()
+      for (symbol <- nonterminals) S += (symbol -> Set())
+      for (symbol <- terminals) S += (symbol -> Set(symbol))
+      def startOf(v : Seq[String]) : Set[String] = {
+        var start = Set[String]()
+        for (s <- v) {
+          start = start ++ S(s)
+          if (!isNullableNonterminal(s)) return start
+        }
+        start
+      }
+      var changed = true
+      while(changed) {
+        changed = false
+        for (n <- nonterminals) {
+          val oldstart = S(n)
+          var start = oldstart
+          for (rule <- parserules(n)) {
+            start = start ++ startOf(rule.rhs.map(i => i.symbol))
+          } 
+          if (start != oldstart) {
+            changed = true  
+            S += (n -> start) 
+          }       
+        }
+      }
+      startOf _
+    }    
+
+    lazy val FINISH : Seq[String] => Set[String] = {
+      var F : Map[String, Set[String]] = Map()
+      for (symbol <- nonterminals) F += (symbol -> Set())
+      for (symbol <- terminals) F += (symbol -> Set(symbol))
+      def finishOf(v : Seq[String]) : Set[String] = {
+        var finish = Set[String]()
+        for (s <- v.reverse) {
+          finish = finish ++ F(s)
+          if (!isNullableNonterminal(s)) return finish
+        }
+        finish
+      }
+      var changed = true
+      while(changed) {
+        changed = false
+        for (n <- nonterminals) {
+          val oldfinish = F(n)
+          var finish = oldfinish
+          for (rule <- parserules(n)) {
+            finish = finish ++ finishOf(rule.rhs.map(i => i.symbol))
+          } 
+          if (finish != oldfinish) {
+            changed = true  
+            F += (n -> finish) 
+          }       
+        }
+      }
+      finishOf _
+    }
+
+    lazy val SymbolsWithZeroStart : Set[String] = {
+      var m : Set[String] = Set()
+      for (symbol <- terminals ++ nonterminals) {
+        for (t <- START(Seq(symbol))) {
+          if (isNullableTerminal(t)) m += symbol
+        }
+      }
+      m
+    }    
+
+    lazy val SymbolsWithZeroFinish : Set[String] = {
+      var m : Set[String] = Set()
+      for (symbol <- terminals ++ nonterminals) {
+        for (t <- FINISH(Seq(symbol))) {
+          if (isNullableTerminal(t)) m += symbol
+        }
+      }
+      m
+    }    
 
     private def computeRhsIndices(nonterminal : String, ruleindex : Int) : Map[IndexedSymbol, Int] = {
       val rule = parserules(nonterminal)(ruleindex)

@@ -1,7 +1,6 @@
 package proofpeer.indent.earley
 
 import proofpeer.indent._
-import proofpeer.indent.regex.DFA
 
 import scala.collection.mutable.{Map => MutableMap, Set => MutableSet}
 

@@ -14,7 +14,7 @@ lazy val foo = crossProject.in(file(".")).
     libraryDependencies += "net.proofpeer" %%% "proofpeer-general" % "0.1-SNAPSHOT"    
   ).
   jvmSettings(
-    libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.10.1" % "test"
+    libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.12.5" % "test"
   )
 
 lazy val fooJS = foo.js
