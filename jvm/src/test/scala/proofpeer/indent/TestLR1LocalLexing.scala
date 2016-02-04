@@ -8,8 +8,6 @@ import proofpeer.indent.lr1._
 
 object TestLR1LocalLexing extends Properties("LR1LocalLexing") {
 
-  import Constraint._
-
   def grule(s : String, rhs : String) : Grammar = 
     rule(s, rhs, c => null)
 

@@ -10,8 +10,6 @@ import proofpeer.indent.lr1._
 
 object TestLocalLexingSemantics extends Properties("LocalLexingSemantics") {
 
-  import Constraint._
-
   val grammar1 =
     rule("A", char('a'), None, "default") ++
     rule("E", EMPTY, None, FALLBACK_SCOPE) ++
