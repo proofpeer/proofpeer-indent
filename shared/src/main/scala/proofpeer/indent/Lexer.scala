@@ -41,7 +41,7 @@ object Lexer {
       val (start, continue) = layout(param)
       val stream = new DocumentCharacterStream(d, startPosition, start, continue)
       val (len, _) = DFA.run(dfa, stream, null)
-      (len, earley.Earley.DEFAULT_RESULT)
+      (len, ParseParam.NIL)
     }
   } 
 
@@ -68,6 +68,21 @@ object Lexer {
 
   def demandRightBorder(lexer : Lexer, minNewLines : Int = 0, borderRange : Range = Range()) : Lexer = 
     new DemandRightBorder(lexer, minNewLines, borderRange)
+
+  def except(lexer : Lexer, exception : Lexer) : Lexer = 
+    new Lexer {
+      def lex(d : Document, startPosition : Int, param : ParseParam.V) : (Int, ParseParam.V) = {
+        val (len, result) = lexer.lex(d, startPosition, param)
+        if (len >= 0) {
+          val (len2, _) = exception.lex(d, startPosition, param)
+          if (len2 == len) (-1, ParseParam.UNDEFINED) else (len, result)
+        } else (len, result)
+      }
+
+      def zero = lexer.zero
+
+      def first = lexer.first
+    }
 }
 
 final class DocumentCharacterStream(document : Document, startPosition : Int,
