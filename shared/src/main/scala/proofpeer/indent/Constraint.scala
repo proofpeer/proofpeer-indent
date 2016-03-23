@@ -86,6 +86,13 @@ object Constraint {
   /** Maximum column in which a character of s appears which is also in the last line of s. */
   final case object RightMostLast extends LayoutQualifier { def get(s : Span) = if (s.isNull) None else Some(s.rightMostLast) }
 
+  /** min(LeftMost, LeftMostInFirst) */
+  final case object MinLeft extends LayoutQualifier { 
+    def get(s : Span) = 
+      if (s.isNull) None 
+      else Some(if (s.leftMostInFirst < s.leftMost) s.leftMostInFirst else s.leftMost) 
+  }
+
   /** B starts in the same line that A ends in. */
   def SameLine(A : IndexedSymbol, B : IndexedSymbol) : Constraint  =
     Eq(LastRow(A), FirstRow(B), 0)
